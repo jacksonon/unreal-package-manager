@@ -4,11 +4,13 @@ import type { MessageKey } from '@shared/i18n'
 import { MarkdownView } from './MarkdownView'
 import { EmptyState } from './EmptyState'
 import { useI18n } from './i18n'
+import { Icon, IconArrowUp, IconChevron, IconFolder, IconGear, IconGlobe, IconPlugin, IconRefresh, IconSearch } from './icons'
 
 type MainTab = 'REGISTRY' | 'PROJECT' | 'UPDATES'
 type DetailTab = 'INFO' | 'README' | 'VERSIONS'
 
 const LS_PROJECT_DIR = 'upm:lastProjectDir'
+const LS_LIST_CONTEXT_OPEN = 'upm:listContextOpen'
 const LIST_PAGE_SIZE = 20
 
 const hasElectronBridge = () => typeof window !== 'undefined' && typeof window.upm?.getProjectState === 'function'
@@ -72,6 +74,7 @@ export const App: React.FC = () => {
 
   const [installKind, setInstallKind] = useState<'runtime' | 'dev'>('runtime')
   const [installVersionOrTag, setInstallVersionOrTag] = useState('latest')
+  const [listContextOpen, setListContextOpen] = useState(true)
 
   const searchTimer = useRef<number | null>(null)
   const listBodyRef = useRef<HTMLDivElement | null>(null)
@@ -125,6 +128,8 @@ export const App: React.FC = () => {
   useEffect(() => {
     const last = localStorage.getItem(LS_PROJECT_DIR)
     if (last) setProjectDir(last)
+    const ctxOpen = localStorage.getItem(LS_LIST_CONTEXT_OPEN)
+    if (ctxOpen === '0') setListContextOpen(false)
     void refreshSettings()
     void refreshProject(last ?? null)
     void refreshNpmrc(last ?? null)
@@ -311,52 +316,13 @@ export const App: React.FC = () => {
           {isMac ? <div className="ue-traffic-spacer" aria-hidden="true" /> : null}
           <div className="ue-title">{t('app.title')}</div>
 
-          <div className="ue-tabs">
-            <Tab active={tab === 'REGISTRY'} onClick={() => setTab('REGISTRY')}>
-              {t('tabs.registry')}
-            </Tab>
-            <Tab active={tab === 'PROJECT'} onClick={() => setTab('PROJECT')}>
-              {t('tabs.project')}
-            </Tab>
-            <Tab active={tab === 'UPDATES'} onClick={() => setTab('UPDATES')}>
-              {t('tabs.updates')}
-            </Tab>
-          </div>
-
           <div className="ue-spacer" />
 
-          <input
-            className="ue-search"
-            value={query}
-            placeholder={tab === 'REGISTRY' ? t('search.registry.placeholder') : t('search.filter.placeholder')}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-
-          <button className="btn" onClick={selectProject} disabled={busy !== null}>
-            {t('actions.selectProject')}
-          </button>
-          <button className="btn" onClick={() => void refreshProject(projectDir)} disabled={busy !== null}>
-            {t('actions.refresh')}
-          </button>
           <button className="btn" onClick={() => setShowSettings(true)} disabled={!hasElectronBridge()}>
+            <Icon><IconGear /></Icon>
             {t('actions.settings')}
           </button>
         </div>
-
-        <section className="ue-meta ue-meta-top">
-          <div className="kv">
-            <div className="k">{t('meta.project')}</div>
-            <div className="v mono">{projectDir ?? t('meta.unselected')}</div>
-          </div>
-          <div className="kv">
-            <div className="k">{t('meta.registry')}</div>
-            <div className="v mono">{projectState?.npmrc?.values?.registry ?? t('meta.projectNpmrc')}</div>
-          </div>
-          <div className="kv">
-            <div className="k">{t('meta.pluginsRoot')}</div>
-            <div className="v mono">{projectState?.pluginsRootDir ?? t('meta.unknown')}</div>
-          </div>
-        </section>
       </header>
 
       <div className="ue-content">
@@ -384,6 +350,90 @@ export const App: React.FC = () => {
         <main className="ue-main">
           <aside className="ue-list">
             <div className="ue-list-header">
+              <div className="ue-search-wrap">
+                <div className="ue-search-icon">
+                  <Icon><IconSearch /></Icon>
+                </div>
+                <input
+                  className="ue-search ue-search-sidebar"
+                  value={query}
+                  placeholder={tab === 'REGISTRY' ? t('search.registry.placeholder') : t('search.filter.placeholder')}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </div>
+
+              <div className="ue-list-header-top">
+                <div className="ue-tabs">
+                  <Tab active={tab === 'REGISTRY'} onClick={() => setTab('REGISTRY')} icon={<IconGlobe />}>
+                    {t('tabs.registry')}
+                  </Tab>
+                  <Tab active={tab === 'PROJECT'} onClick={() => setTab('PROJECT')} icon={<IconFolder />}>
+                    {t('tabs.project')}
+                  </Tab>
+                  <Tab active={tab === 'UPDATES'} onClick={() => setTab('UPDATES')} icon={<IconArrowUp />}>
+                    {t('tabs.updates')}
+                  </Tab>
+                </div>
+              </div>
+
+              <div className="ue-list-actions">
+                <button className="btn" onClick={selectProject} disabled={busy !== null}>
+                  <Icon><IconFolder /></Icon>
+                  {t('actions.selectProject')}
+                </button>
+                <button
+                  className="ue-icon-btn"
+                  onClick={() => {
+                    setListContextOpen((v) => {
+                      const next = !v
+                      localStorage.setItem(LS_LIST_CONTEXT_OPEN, next ? '1' : '0')
+                      return next
+                    })
+                  }}
+                  aria-label={listContextOpen ? t('list.context.hide') : t('list.context.show')}
+                  title={listContextOpen ? t('list.context.hide') : t('list.context.show')}
+                >
+                  <Icon><IconChevron direction={listContextOpen ? 'up' : 'down'} /></Icon>
+                </button>
+                <button
+                  className="ue-icon-btn"
+                  onClick={() => void refreshProject(projectDir)}
+                  disabled={busy !== null}
+                  aria-label={t('actions.refresh')}
+                  title={t('actions.refresh')}
+                >
+                  <Icon><IconRefresh /></Icon>
+                </button>
+              </div>
+
+              {listContextOpen ? (
+                <div className="ue-list-context">
+                  <div className="ue-list-context-row">
+                    <div className="ue-list-context-k">
+                      <Icon><IconFolder /></Icon>
+                      <span className="k">{t('meta.project')}</span>
+                    </div>
+                    <div className="ue-list-context-v mono">{projectDir ?? t('meta.unselected')}</div>
+                  </div>
+                  <div className="ue-list-context-row">
+                    <div className="ue-list-context-k">
+                      <Icon><IconGlobe /></Icon>
+                      <span className="k">{t('meta.registry')}</span>
+                    </div>
+                    <div className="ue-list-context-v mono">
+                      {projectState?.npmrc?.values?.registry ?? t('meta.projectNpmrc')}
+                    </div>
+                  </div>
+                  <div className="ue-list-context-row">
+                    <div className="ue-list-context-k">
+                      <Icon><IconPlugin /></Icon>
+                      <span className="k">{t('meta.pluginsRoot')}</span>
+                    </div>
+                    <div className="ue-list-context-v mono">{projectState?.pluginsRootDir ?? t('meta.unknown')}</div>
+                  </div>
+                </div>
+              ) : null}
+
               <div className="muted">
                 {projectState
                   ? t('list.count', { shown: Math.min(visibleItems.length, listItems.length), total: listItems.length })
@@ -514,13 +564,17 @@ export const App: React.FC = () => {
   )
 }
 
-const Tab: React.FC<{ active: boolean; onClick: () => void; children: React.ReactNode }> = ({
+const Tab: React.FC<{ active: boolean; onClick: () => void; icon?: React.ReactNode; children: React.ReactNode }> = ({
   active,
   onClick,
+  icon,
   children
 }) => (
   <button className={`ue-tab ${active ? 'active' : ''}`} onClick={onClick}>
-    {children}
+    <span className="ue-tab-inner">
+      {icon ? <Icon>{icon}</Icon> : null}
+      <span className="ue-tab-text">{children}</span>
+    </span>
   </button>
 )
 

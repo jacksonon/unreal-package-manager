@@ -26,6 +26,8 @@ const en = {
 
   'list.count': '{shown} / {total} items',
   'list.loading': ' · loading…',
+  'list.context.show': 'Show details',
+  'list.context.hide': 'Hide details',
 
   'status.remote': 'REGISTRY',
   'status.installed': 'INSTALLED',
@@ -197,6 +199,8 @@ const zh: Record<MessageKey, string> = {
 
   'list.count': '{shown} / {total} items',
   'list.loading': ' · loading…',
+  'list.context.show': '展开',
+  'list.context.hide': '收起',
 
   'status.remote': '源',
   'status.installed': '已安装',
@@ -364,6 +368,8 @@ const ja: Record<MessageKey, string> = {
 
   'list.count': '{shown} / {total} items',
   'list.loading': ' · loading…',
+  'list.context.show': '詳細を表示',
+  'list.context.hide': '詳細を非表示',
 
   'status.remote': 'REGISTRY',
   'status.installed': 'インストール済み',
@@ -532,6 +538,8 @@ const ko: Record<MessageKey, string> = {
 
   'list.count': '{shown} / {total} items',
   'list.loading': ' · loading…',
+  'list.context.show': '펼치기',
+  'list.context.hide': '접기',
 
   'status.remote': '레지스트리',
   'status.installed': '설치됨',
@@ -700,6 +708,8 @@ const fr: Record<MessageKey, string> = {
 
   'list.count': '{shown} / {total} items',
   'list.loading': ' · loading…',
+  'list.context.show': 'Afficher détails',
+  'list.context.hide': 'Masquer détails',
 
   'status.remote': 'REGISTRE',
   'status.installed': 'INSTALLÉ',
@@ -869,6 +879,8 @@ const de: Record<MessageKey, string> = {
 
   'list.count': '{shown} / {total} items',
   'list.loading': ' · loading…',
+  'list.context.show': 'Details anzeigen',
+  'list.context.hide': 'Details ausblenden',
 
   'status.remote': 'REGISTRY',
   'status.installed': 'INSTALLIERT',
@@ -1038,6 +1050,8 @@ const ru: Record<MessageKey, string> = {
 
   'list.count': '{shown} / {total} items',
   'list.loading': ' · loading…',
+  'list.context.show': 'Показать сведения',
+  'list.context.hide': 'Скрыть сведения',
 
   'status.remote': 'РЕЕСТР',
   'status.installed': 'УСТАНОВЛЕНО',
