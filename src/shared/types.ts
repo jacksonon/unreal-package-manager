@@ -1,3 +1,5 @@
+import type { UiLanguage } from './i18n'
+
 export type DependencyKind = 'runtime' | 'dev'
 
 export type NpmrcConfig = {
@@ -81,6 +83,7 @@ export type AppSettings = {
   autoLinkUnrealPlugins: boolean
   linkMode: 'auto' | 'copy'
   theme: 'system' | 'dark' | 'light'
+  uiLanguage: UiLanguage
   ueOnlyFilter: boolean
   showLogDock: boolean
 }

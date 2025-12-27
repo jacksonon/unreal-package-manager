@@ -8,6 +8,7 @@ import type {
   PackageMetadata,
   ProjectState
 } from '../shared/types'
+import type { MessageKey } from '../shared/i18n'
 import { loadProjectNpmrc } from './npmrc'
 import { getEffectiveNpmPath, npmSearchRemote, runNpm, type NpmCommandResult } from './npm'
 import { syncUePluginLinks } from './uePluginLinker'
@@ -53,10 +54,13 @@ type PackageJson = {
   devDependencies?: Record<string, string>
 }
 
-const readProjectPackageJson = async (projectDir: string): Promise<{ items: PackageListItem[]; warnings: string[] }> => {
+const readProjectPackageJson = async (
+  projectDir: string,
+  tr: (key: MessageKey, vars?: Record<string, string | number>) => string
+): Promise<{ items: PackageListItem[]; warnings: string[] }> => {
   const warnings: string[] = []
   const p = path.join(projectDir, 'package.json')
-  if (!(await exists(p))) return { items: [], warnings: ['package.json 未找到（请在项目根目录创建或指定 working dir）'] }
+  if (!(await exists(p))) return { items: [], warnings: [tr('warn.noPackageJson')] }
   const root = await readJson<PackageJson>(p)
 
   const add = (deps: Record<string, string> | undefined, kind: DependencyKind, out: PackageListItem[]) => {
@@ -124,7 +128,8 @@ const detectLocalUnrealPlugin = async (projectDir: string, packageName: string):
 
 export const getProjectState = async (
   projectDir: string | null,
-  settings: AppSettings
+  settings: AppSettings,
+  tr: (key: MessageKey, vars?: Record<string, string | number>) => string
 ): Promise<ProjectState> => {
   const warnings: string[] = []
   const npmPath = getEffectiveNpmPath(settings)
@@ -137,7 +142,7 @@ export const getProjectState = async (
       pluginsRootDir: null,
       npmrc: null,
       packages: [],
-      warnings: ['请选择 Unreal 项目目录']
+      warnings: [tr('warn.selectProjectDir')]
     }
   }
 
@@ -150,17 +155,17 @@ export const getProjectState = async (
       pluginsRootDir: settings.pluginsRootDirOverride ?? path.join(projectDir, 'Plugins'),
       npmrc: null,
       packages: [],
-      warnings: [`项目目录不存在：${projectDir}`]
+      warnings: [tr('warn.projectDirMissing', { dir: projectDir })]
     }
   }
 
   const uproject = await findUproject(projectDir)
-  if (!uproject) warnings.push('提示：未在该目录下找到 .uproject 文件（仍可管理 package.json & Plugins/）')
+  if (!uproject) warnings.push(tr('warn.noUproject'))
 
   const npmrc = await loadProjectNpmrc(projectDir)
   const pluginsRootDir = settings.pluginsRootDirOverride ?? path.join(projectDir, 'Plugins')
 
-  const pkg = await readProjectPackageJson(projectDir)
+  const pkg = await readProjectPackageJson(projectDir, tr)
   warnings.push(...pkg.warnings)
 
   let lsRes: NpmCommandResult | null = null
@@ -169,7 +174,7 @@ export const getProjectState = async (
   if (await exists(path.join(projectDir, 'package.json'))) {
     lsRes = await runNpm(['ls', '--depth=0', '--json'], { cwd: projectDir, settings, npmrc })
     if (lsRes.exitCode !== 0 && !lsRes.stdout.trim()) {
-      warnings.push(lsRes.stderr || 'npm ls failed')
+      warnings.push(lsRes.stderr || tr('warn.npmLsFailed'))
     }
 
     outdatedRes = await runNpm(['outdated', '--json'], {
@@ -181,7 +186,7 @@ export const getProjectState = async (
     const t = outdatedRes.stdout.trim()
     // npm returns exit code 1 if outdated exists
     if (outdatedRes.exitCode !== 0 && outdatedRes.exitCode !== 1 && !t) {
-      warnings.push(outdatedRes.stderr || 'npm outdated failed')
+      warnings.push(outdatedRes.stderr || tr('warn.npmOutdatedFailed'))
     }
   }
 
@@ -189,7 +194,7 @@ export const getProjectState = async (
     try {
       return lsRes?.stdout?.trim() ? parseInstalledFromNpmLs(lsRes.stdout) : new Map()
     } catch {
-      warnings.push('npm ls JSON 解析失败')
+      warnings.push(tr('warn.npmLsJsonParse'))
       return new Map()
     }
   })()
@@ -198,7 +203,7 @@ export const getProjectState = async (
     try {
       return outdatedRes?.stdout?.trim() ? parseOutdated(outdatedRes.stdout) : new Map()
     } catch {
-      warnings.push('npm outdated JSON 解析失败')
+      warnings.push(tr('warn.npmOutdatedJsonParse'))
       return new Map()
     }
   })()

@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { AppSettings, LinkSyncResult, NpmrcConfig, PackageListItem, ProjectState } from '@shared/types'
+import type { MessageKey } from '@shared/i18n'
 import { MarkdownView } from './MarkdownView'
 import { EmptyState } from './EmptyState'
+import { useI18n } from './i18n'
 
 type MainTab = 'REGISTRY' | 'PROJECT' | 'UPDATES'
 type DetailTab = 'INFO' | 'README' | 'VERSIONS'
@@ -11,11 +13,11 @@ const LIST_PAGE_SIZE = 20
 
 const hasElectronBridge = () => typeof window !== 'undefined' && typeof window.upm?.getProjectState === 'function'
 
-const statusLabel: Record<PackageListItem['status'], string> = {
-  remote: 'REGISTRY',
-  installed: 'INSTALLED',
-  update_available: 'UPDATE',
-  missing: 'MISSING'
+const statusLabelKey: Record<PackageListItem['status'], MessageKey> = {
+  remote: 'status.remote',
+  installed: 'status.installed',
+  update_available: 'status.update_available',
+  missing: 'status.missing'
 }
 
 const formatNpmLog = (log: { cmd: string; stdout: string; stderr: string } | null | undefined) => {
@@ -23,20 +25,20 @@ const formatNpmLog = (log: { cmd: string; stdout: string; stderr: string } | nul
   return `${log.cmd}\n\n${log.stdout}\n${log.stderr}`.trim()
 }
 
-const formatLinkSyncLog = (res: LinkSyncResult) => {
+const formatLinkSyncLog = (t: (key: MessageKey, vars?: Record<string, string | number>) => string, res: LinkSyncResult) => {
   const lines: string[] = []
-  lines.push(`Sync Links`)
-  lines.push(`ok: ${res.ok}`)
-  lines.push(`linked: ${res.linked.length}`)
-  lines.push(`removed: ${res.removed.length}`)
+  lines.push(t('links.log.title'))
+  lines.push(t('links.log.ok', { value: String(res.ok) }))
+  lines.push(t('links.log.linked', { value: res.linked.length }))
+  lines.push(t('links.log.removed', { value: res.removed.length }))
   if (res.warnings?.length) {
     lines.push('')
-    lines.push('warnings:')
+    lines.push(t('links.log.warnings'))
     lines.push(...res.warnings.map((w) => `- ${w}`))
   }
   if (res.error) {
     lines.push('')
-    lines.push(`error: ${res.error}`)
+    lines.push(t('links.log.error', { value: res.error }))
   }
   return lines.join('\n')
 }
@@ -44,6 +46,7 @@ const formatLinkSyncLog = (res: LinkSyncResult) => {
 export const App: React.FC = () => {
   const platform = hasElectronBridge() ? window.upm.platform : 'web'
   const isMac = platform === 'darwin'
+  const { t, setPref } = useI18n()
 
   const [projectDir, setProjectDir] = useState<string | null>(null)
   const [projectState, setProjectState] = useState<ProjectState | null>(null)
@@ -104,9 +107,7 @@ export const App: React.FC = () => {
 
   const refreshProject = async (dir: string | null) => {
     if (!hasElectronBridge()) {
-      setError(
-        '当前页面未运行在 Electron App 中（preload 未注入），无法执行文件夹选择 / npm / 安装等操作。请用 Electron 窗口打开。'
-      )
+      setError(t('errors.noElectron'))
       return
     }
     const res = await window.upm.getProjectState(dir)
@@ -128,6 +129,10 @@ export const App: React.FC = () => {
     void refreshProject(last ?? null)
     void refreshNpmrc(last ?? null)
   }, [])
+
+  useEffect(() => {
+    setPref(settings?.uiLanguage ?? 'system')
+  }, [settings?.uiLanguage, setPref])
 
   const selectProject = async () => {
     setError(null)
@@ -277,7 +282,7 @@ export const App: React.FC = () => {
     await act('links:sync', async () => {
       const res = await window.upm.syncLinks(projectDir)
       if (!res.ok) return setError(res.error)
-      setLogText(formatLinkSyncLog(res.data))
+      setLogText(formatLinkSyncLog(t, res.data))
       if (settings?.showLogDock ?? true) setLogVisible(true)
       const joined = [...res.data.warnings]
       if (res.data.error) joined.push(res.data.error)
@@ -304,17 +309,17 @@ export const App: React.FC = () => {
       <header className="ue-topbar">
         <div className="ue-toolbar">
           {isMac ? <div className="ue-traffic-spacer" aria-hidden="true" /> : null}
-          <div className="ue-title">Unreal Package Manager</div>
+          <div className="ue-title">{t('app.title')}</div>
 
           <div className="ue-tabs">
             <Tab active={tab === 'REGISTRY'} onClick={() => setTab('REGISTRY')}>
-              My Registry
+              {t('tabs.registry')}
             </Tab>
             <Tab active={tab === 'PROJECT'} onClick={() => setTab('PROJECT')}>
-              In Project
+              {t('tabs.project')}
             </Tab>
             <Tab active={tab === 'UPDATES'} onClick={() => setTab('UPDATES')}>
-              Updates
+              {t('tabs.updates')}
             </Tab>
           </div>
 
@@ -323,33 +328,33 @@ export const App: React.FC = () => {
           <input
             className="ue-search"
             value={query}
-            placeholder={tab === 'REGISTRY' ? 'Search registry...' : 'Filter...'}
+            placeholder={tab === 'REGISTRY' ? t('search.registry.placeholder') : t('search.filter.placeholder')}
             onChange={(e) => setQuery(e.target.value)}
           />
 
           <button className="btn" onClick={selectProject} disabled={busy !== null}>
-            选择项目
+            {t('actions.selectProject')}
           </button>
           <button className="btn" onClick={() => void refreshProject(projectDir)} disabled={busy !== null}>
-            刷新
+            {t('actions.refresh')}
           </button>
           <button className="btn" onClick={() => setShowSettings(true)} disabled={!hasElectronBridge()}>
-            设置
+            {t('actions.settings')}
           </button>
         </div>
 
         <section className="ue-meta ue-meta-top">
           <div className="kv">
-            <div className="k">Project</div>
-            <div className="v mono">{projectDir ?? '未选择'}</div>
+            <div className="k">{t('meta.project')}</div>
+            <div className="v mono">{projectDir ?? t('meta.unselected')}</div>
           </div>
           <div className="kv">
-            <div className="k">Registry</div>
-            <div className="v mono">{projectState?.npmrc?.values?.registry ?? '(project .npmrc)'}</div>
+            <div className="k">{t('meta.registry')}</div>
+            <div className="v mono">{projectState?.npmrc?.values?.registry ?? t('meta.projectNpmrc')}</div>
           </div>
           <div className="kv">
-            <div className="k">Plugins Root</div>
-            <div className="v mono">{projectState?.pluginsRootDir ?? '-'}</div>
+            <div className="k">{t('meta.pluginsRoot')}</div>
+            <div className="v mono">{projectState?.pluginsRootDir ?? t('meta.unknown')}</div>
           </div>
         </section>
       </header>
@@ -380,8 +385,10 @@ export const App: React.FC = () => {
           <aside className="ue-list">
             <div className="ue-list-header">
               <div className="muted">
-                {projectState ? `${Math.min(visibleItems.length, listItems.length)} / ${listItems.length} items` : '...'}
-                {tab === 'REGISTRY' && remoteLoading ? ' · loading…' : ''}
+                {projectState
+                  ? t('list.count', { shown: Math.min(visibleItems.length, listItems.length), total: listItems.length })
+                  : '...'}
+                {tab === 'REGISTRY' && remoteLoading ? t('list.loading') : ''}
               </div>
             </div>
             <div className="ue-list-body" ref={listBodyRef} onScroll={onListScroll}>
@@ -396,7 +403,7 @@ export const App: React.FC = () => {
                       <div className="ue-item-name">{p.displayName ?? p.name}</div>
                       <div className="ue-item-tags">
                         {p.isUnrealPlugin ? <span className="tag ue">UE</span> : null}
-                        <span className={`badge ${p.status}`}>{statusLabel[p.status]}</span>
+                        <span className={`badge ${p.status}`}>{t(statusLabelKey[p.status])}</span>
                       </div>
                     </div>
                     <div className="ue-item-sub mono">{p.name}</div>
@@ -412,34 +419,34 @@ export const App: React.FC = () => {
                   </button>
                 ))
               ) : !projectDir ? (
-                <EmptyState title="未选择项目" description="点击右上角“选择项目”后查看内容。" />
+                <EmptyState title={t('empty.noProject.title')} description={t('empty.noProject.desc')} />
               ) : tab === 'REGISTRY' ? (
                 <EmptyState
-                  title={remoteSearched ? '未找到包' : '开始搜索'}
+                  title={remoteSearched ? t('empty.registry.noResults.title') : t('empty.registry.start.title')}
                   description={
-                    remoteSearched ? '试试更具体的关键词，或检查 Registry 配置与过滤条件。' : '在上方输入关键词进行搜索。'
+                    remoteSearched ? t('empty.registry.noResults.desc') : t('empty.registry.start.desc')
                   }
                 >
                   {remoteSearched ? (
                     <div className="muted">
-                      <div>如果你配置的是公网源：</div>
-                      <div>- 请先在设置里点“保存”（写入项目 .npmrc）</div>
-                      <div>- 试试输入更具体的搜索词</div>
-                      <div>- 关闭设置里的 UE Only 过滤（公网包通常不含 UE 关键字）</div>
+                      <div>{t('empty.registry.noResults.help.header')}</div>
+                      <div>{t('empty.registry.noResults.help.save')}</div>
+                      <div>{t('empty.registry.noResults.help.query')}</div>
+                      <div>{t('empty.registry.noResults.help.filter')}</div>
                     </div>
                   ) : null}
                 </EmptyState>
               ) : tab === 'UPDATES' ? (
-                <EmptyState title="暂无更新" description="当前项目没有可更新的包。" />
+                <EmptyState title={t('empty.updates.title')} description={t('empty.updates.desc')} />
               ) : (
-                <EmptyState title="空列表" description="当前项目还没有安装任何包。" />
+                <EmptyState title={t('empty.project.title')} description={t('empty.project.desc')} />
               )}
             </div>
           </aside>
 
           <section className="ue-detail">
             {!selected ? (
-              <div className="ue-detail-empty">请选择左侧包</div>
+              <EmptyState title={t('detail.selectPrompt')} icon="←" />
             ) : (
               <PackageDetail
                 projectDir={projectDir}
@@ -486,13 +493,19 @@ export const App: React.FC = () => {
           onSaveSettings={async (patch) => {
             setError(null)
             const res = await window.upm.setSettings(patch)
-            if (!res.ok) return setError(res.error)
+            if (!res.ok) {
+              setError(res.error)
+              throw new Error(res.error)
+            }
             setSettings(res.data)
           }}
           onSaveNpmrc={async (cfg) => {
             if (!projectDir) return
             const res = await window.upm.saveNpmrc(projectDir, cfg)
-            if (!res.ok) return setError(res.error)
+            if (!res.ok) {
+              setError(res.error)
+              throw new Error(res.error)
+            }
             setNpmrc(cfg)
           }}
         />
@@ -517,9 +530,10 @@ const LogDock: React.FC<{
   onToggle: () => void
   onClear: () => void
 }> = ({ visible, text, onToggle, onClear }) => {
+  const { t } = useI18n()
   const [copyHint, setCopyHint] = useState<string | null>(null)
   const bodyRef = useRef<HTMLPreElement | null>(null)
-  const display = text?.trim() ? text : 'No log.'
+  const display = text?.trim() ? text : t('log.noLog')
 
   useEffect(() => {
     if (!visible) return
@@ -531,11 +545,11 @@ const LogDock: React.FC<{
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(display)
-      setCopyHint('Copied')
+      setCopyHint(t('log.copied'))
       window.setTimeout(() => setCopyHint(null), 1200)
     } catch (e) {
       console.error(e)
-      setCopyHint('Copy failed')
+      setCopyHint(t('log.copyFailed'))
       window.setTimeout(() => setCopyHint(null), 1500)
     }
   }
@@ -543,17 +557,17 @@ const LogDock: React.FC<{
   return (
     <section className={`ue-logdock ${visible ? 'open' : 'closed'}`} aria-label="Log">
       <div className="ue-logdock-header">
-        <div className="ue-logdock-title">LOG</div>
+        <div className="ue-logdock-title">{t('log.title')}</div>
         <div className="ue-logdock-spacer" />
         {copyHint ? <div className="muted mono">{copyHint}</div> : null}
         <button className="btn" onClick={onToggle}>
-          {visible ? '隐藏' : '展示'}
+          {visible ? t('log.toggle.hide') : t('log.toggle.show')}
         </button>
         <button className="btn" onClick={onClear} disabled={!text?.trim()}>
-          清空
+          {t('log.clear')}
         </button>
         <button className="btn" onClick={() => void copy()}>
-          复制
+          {t('log.copy')}
         </button>
       </div>
       {visible ? <pre ref={bodyRef} className="ue-logdock-body mono">{display}</pre> : null}
@@ -594,6 +608,7 @@ const PackageDetail: React.FC<{
   setError,
   onSetLogText
 }) => {
+  const { t } = useI18n()
   const [metadata, setMetadata] = useState<any | null>(null)
 
   useEffect(() => {
@@ -618,8 +633,10 @@ const PackageDetail: React.FC<{
           <div className="name">{metadata?.displayName ?? selected.displayName ?? selected.name}</div>
           <div className="sub mono">{selected.name}</div>
           <div className="sub mono">
-            {selected.installedVersion ? `installed ${selected.installedVersion}` : 'not installed'}
-            {selected.latestVersion ? ` · latest ${selected.latestVersion}` : ''}
+            {selected.installedVersion
+              ? t('detail.installed', { version: selected.installedVersion })
+              : t('detail.notInstalled')}
+            {selected.latestVersion ? t('detail.latest', { version: selected.latestVersion }) : ''}
           </div>
           {selected.description || metadata?.description ? <div className="sub">{metadata?.description ?? selected.description}</div> : null}
         </div>
@@ -632,81 +649,92 @@ const PackageDetail: React.FC<{
                 value={installKind}
                 onChange={(e) => setInstallKind(e.target.value as any)}
                 disabled={!canAct}
-                title="dependencies：项目运行时需要（推荐）；devDependencies：仅开发/构建阶段需要"
+                title={t('detail.installKind.title')}
               >
-                <option value="runtime">dependencies（推荐）</option>
-                <option value="dev">devDependencies（开发/构建）</option>
+                <option value="runtime">{t('detail.installKind.runtime')}</option>
+                <option value="dev">{t('detail.installKind.dev')}</option>
               </select>
               <div className="muted" style={{ flexBasis: '100%' }}>
-                不确定选哪个：一般 UE 插件包用 <span className="mono">dependencies</span>；只有工具链/脚本才放{' '}
-                <span className="mono">devDependencies</span>。
+                {t('detail.installKind.hint')}
               </div>
               <input
                 className="input"
                 value={installVersionOrTag}
                 onChange={(e) => setInstallVersionOrTag(e.target.value)}
-                placeholder="version/tag (default latest)"
+                placeholder={t('detail.versionTag.placeholder')}
                 disabled={!canAct}
               />
               <button className="btn primary" onClick={() => void onInstall()} disabled={!canAct}>
-                Install
+                {t('detail.action.install')}
               </button>
             </>
           ) : null}
 
           {selected.status === 'update_available' ? (
             <button className="btn primary" onClick={() => void onUpdate()} disabled={!canAct}>
-              Update
+              {t('detail.action.update')}
             </button>
           ) : null}
 
           {selected.status !== 'remote' ? (
             <button className="btn danger" onClick={() => void onUninstall()} disabled={!canAct}>
-              Remove
+              {t('detail.action.remove')}
             </button>
           ) : null}
 
           <button className="btn" onClick={() => void onSyncLinks()} disabled={!canAct}>
-            Sync Links
+            {t('detail.action.syncLinks')}
           </button>
         </div>
       </div>
 
       <div className="ue-detail-tabs">
         <Tab active={detailTab === 'INFO'} onClick={() => setDetailTab('INFO')}>
-          INFO
+          {t('detail.tabs.info')}
         </Tab>
         <Tab active={detailTab === 'README'} onClick={() => setDetailTab('README')}>
-          README
+          {t('detail.tabs.readme')}
         </Tab>
         <Tab active={detailTab === 'VERSIONS'} onClick={() => setDetailTab('VERSIONS')}>
-          VERSIONS
+          {t('detail.tabs.versions')}
         </Tab>
       </div>
 
       <div className="ue-detail-body">
         {detailTab === 'INFO' ? (
           <div className="ue-grid">
-            <InfoRow k="Version" v={metadata?.version ?? selected.latestVersion ?? '-'} mono />
-            <InfoRow k="License" v={metadata?.license ?? '-'} mono />
-            <InfoRow k="Author" v={metadata?.author ?? '-'} />
-            <InfoRow k="Homepage" v={metadata?.homepageUrl ?? '-'} mono href={metadata?.homepageUrl} />
-            <InfoRow k="Repository" v={metadata?.repositoryUrl ?? '-'} mono href={metadata?.repositoryUrl} />
-            {metadata?.docsUrl ? <InfoRow k="Docs" v={metadata.docsUrl} mono href={metadata.docsUrl} /> : null}
+            <InfoRow k={t('detail.info.version')} v={metadata?.version ?? selected.latestVersion ?? '-'} mono />
+            <InfoRow k={t('detail.info.license')} v={metadata?.license ?? '-'} mono />
+            <InfoRow k={t('detail.info.author')} v={metadata?.author ?? '-'} />
+            <InfoRow k={t('detail.info.homepage')} v={metadata?.homepageUrl ?? '-'} mono href={metadata?.homepageUrl} />
+            <InfoRow
+              k={t('detail.info.repository')}
+              v={metadata?.repositoryUrl ?? '-'}
+              mono
+              href={metadata?.repositoryUrl}
+            />
+            {metadata?.docsUrl ? <InfoRow k={t('detail.info.docs')} v={metadata.docsUrl} mono href={metadata.docsUrl} /> : null}
             {metadata?.marketplaceUrl ? (
-              <InfoRow k="Marketplace" v={metadata.marketplaceUrl} mono href={metadata.marketplaceUrl} />
+              <InfoRow k={t('detail.info.marketplace')} v={metadata.marketplaceUrl} mono href={metadata.marketplaceUrl} />
             ) : null}
-            {metadata?.supportUrl ? <InfoRow k="Support" v={metadata.supportUrl} mono href={metadata.supportUrl} /> : null}
+            {metadata?.supportUrl ? (
+              <InfoRow k={t('detail.info.support')} v={metadata.supportUrl} mono href={metadata.supportUrl} />
+            ) : null}
             {metadata?.createdByUrl ? (
-              <InfoRow k="CreatedBy" v={metadata?.createdBy ?? metadata.createdByUrl} mono href={metadata.createdByUrl} />
+              <InfoRow
+                k={t('detail.info.createdBy')}
+                v={metadata?.createdBy ?? metadata.createdByUrl}
+                mono
+                href={metadata.createdByUrl}
+              />
             ) : metadata?.createdBy ? (
-              <InfoRow k="CreatedBy" v={metadata.createdBy} />
+              <InfoRow k={t('detail.info.createdBy')} v={metadata.createdBy} />
             ) : null}
           </div>
         ) : null}
 
         {detailTab === 'README' ? (
-          metadata?.readme ? <MarkdownView markdown={metadata.readme} /> : <div className="muted">No readme.</div>
+          metadata?.readme ? <MarkdownView markdown={metadata.readme} /> : <div className="muted">{t('detail.noReadme')}</div>
         ) : null}
 
         {detailTab === 'VERSIONS' ? (
@@ -719,7 +747,7 @@ const PackageDetail: React.FC<{
                 </div>
               ))
             ) : (
-              <div className="muted">No versions.</div>
+              <div className="muted">{t('detail.noVersions')}</div>
             )}
           </div>
         ) : null}
@@ -779,6 +807,7 @@ const SettingsModal: React.FC<{
   onSaveNpmrc: (cfg: NpmrcConfig) => Promise<void>
   onReload: () => Promise<void>
 }> = ({ projectDir, settings, npmrc, onClose, onSaveSettings, onSaveNpmrc, onReload }) => {
+  const { t, setPref } = useI18n()
   const [draft, setDraft] = useState<AppSettings>(
     settings ?? {
       npmExecutablePath: null,
@@ -786,6 +815,7 @@ const SettingsModal: React.FC<{
       autoLinkUnrealPlugins: true,
       linkMode: 'auto',
       theme: 'system',
+      uiLanguage: 'system',
       ueOnlyFilter: false,
       showLogDock: true
     }
@@ -822,23 +852,35 @@ const SettingsModal: React.FC<{
     }
   }, [draft.theme, settings?.theme])
 
+  useEffect(() => {
+    const initial = settings?.uiLanguage ?? 'system'
+    setPref(draft.uiLanguage)
+    return () => {
+      if (!didCommitRef.current) setPref(initial)
+    }
+  }, [draft.uiLanguage, settings?.uiLanguage, setPref])
+
   const pickPluginsRoot = async () => {
-    const res = await window.upm.selectDir('选择 Plugins 根目录（默认 <Project>/Plugins）')
+    const res = await window.upm.selectDir(t('settings.linking.pickDialogTitle'))
     if (res.ok && res.data) setDraft((d) => ({ ...d, pluginsRootDirOverride: res.data }))
   }
 
   const addScope = () => {
-    const scope = prompt('Scope（例如 @myco）')
+    const scope = prompt(t('settings.registry.scoped.prompt'))
     if (!scope) return
     setDraftNpmrc((c) => ({ ...c, scopedRegistries: { ...(c.scopedRegistries ?? {}), [scope]: '' } }))
   }
 
   const save = async () => {
-    didCommitRef.current = true
-    await onSaveSettings(draft)
-    if (projectDir) await onSaveNpmrc(draftNpmrc)
-    await onReload()
-    onClose()
+    try {
+      await onSaveSettings(draft)
+      if (projectDir) await onSaveNpmrc(draftNpmrc)
+      didCommitRef.current = true
+      await onReload()
+      onClose()
+    } catch {
+      // errors are surfaced by caller; keep modal open
+    }
   }
 
   const ping = async () => {
@@ -852,9 +894,9 @@ const SettingsModal: React.FC<{
     <div className="modal-backdrop" role="dialog" aria-modal="true">
       <div className="modal">
         <div className="modal-title-row">
-          <div className="modal-title">Settings</div>
+          <div className="modal-title">{t('settings.title')}</div>
           <button className="btn" onClick={onClose}>
-            关闭
+            {t('settings.close')}
           </button>
         </div>
 
@@ -864,19 +906,19 @@ const SettingsModal: React.FC<{
               className={`modal-nav ${pane === 'appearance' ? 'active' : ''}`}
               onClick={() => setPane('appearance')}
             >
-              Appearance
+              {t('settings.nav.appearance')}
             </button>
             <button className={`modal-nav ${pane === 'registry' ? 'active' : ''}`} onClick={() => setPane('registry')}>
-              Registry (.npmrc)
+              {t('settings.nav.registry')}
             </button>
             <button className={`modal-nav ${pane === 'npm' ? 'active' : ''}`} onClick={() => setPane('npm')}>
-              NPM
+              {t('settings.nav.npm')}
             </button>
             <button className={`modal-nav ${pane === 'linking' ? 'active' : ''}`} onClick={() => setPane('linking')}>
-              Linking
+              {t('settings.nav.linking')}
             </button>
             <div className="modal-sidebar-hint">
-              <div className="muted">配置会写入：</div>
+              <div className="muted">{t('settings.writesTo')}</div>
               <div className="mono muted">{projectDir ? `${projectDir}/.npmrc` : '<Project>/.npmrc'}</div>
             </div>
           </div>
@@ -884,27 +926,47 @@ const SettingsModal: React.FC<{
           <div className="modal-body">
             {pane === 'appearance' ? (
               <>
-                <div className="modal-section-title">Appearance</div>
+                <div className="modal-section-title">{t('settings.appearance.title')}</div>
                 <div className="modal-row">
-                  <div className="k">Theme</div>
+                  <div className="k">{t('settings.appearance.theme')}</div>
                   <div className="v">
                     <select
                       className="select"
                       value={draft.theme}
                       onChange={(e) => setDraft((d) => ({ ...d, theme: e.target.value as any }))}
                     >
-                      <option value="system">跟随系统</option>
-                      <option value="dark">暗色</option>
-                      <option value="light">亮色</option>
+                      <option value="system">{t('settings.appearance.theme.system')}</option>
+                      <option value="dark">{t('settings.appearance.theme.dark')}</option>
+                      <option value="light">{t('settings.appearance.theme.light')}</option>
                     </select>
                     <div className="muted" style={{ marginTop: 8 }}>
-                      立即预览；保存后会持久化
+                      {t('settings.appearance.theme.hint')}
                     </div>
                   </div>
                 </div>
 
                 <div className="modal-row">
-                  <div className="k">UE Only Filter</div>
+                  <div className="k">{t('settings.appearance.language')}</div>
+                  <div className="v">
+                    <select
+                      className="select"
+                      value={draft.uiLanguage}
+                      onChange={(e) => setDraft((d) => ({ ...d, uiLanguage: e.target.value as AppSettings['uiLanguage'] }))}
+                    >
+                      <option value="system">{t('settings.appearance.language.system')}</option>
+                      <option value="en">{t('settings.appearance.language.en')}</option>
+                      <option value="zh">{t('settings.appearance.language.zh')}</option>
+                      <option value="ja">{t('settings.appearance.language.ja')}</option>
+                      <option value="ko">{t('settings.appearance.language.ko')}</option>
+                      <option value="fr">{t('settings.appearance.language.fr')}</option>
+                      <option value="de">{t('settings.appearance.language.de')}</option>
+                      <option value="ru">{t('settings.appearance.language.ru')}</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="modal-row">
+                  <div className="k">{t('settings.appearance.ueOnly')}</div>
                   <div className="v">
                     <label className="chk">
                       <input
@@ -912,13 +974,13 @@ const SettingsModal: React.FC<{
                         checked={draft.ueOnlyFilter}
                         onChange={(e) => setDraft((d) => ({ ...d, ueOnlyFilter: e.target.checked }))}
                       />{' '}
-                      只显示 Unreal 插件包（按关键字/本地 <code className="mono">*.uplugin</code> 识别）
+                      {t('settings.appearance.ueOnly.label')}
                     </label>
                   </div>
                 </div>
 
                 <div className="modal-row">
-                  <div className="k">Log Panel</div>
+                  <div className="k">{t('settings.appearance.logPanel')}</div>
                   <div className="v">
                     <label className="chk">
                       <input
@@ -926,7 +988,7 @@ const SettingsModal: React.FC<{
                         checked={draft.showLogDock}
                         onChange={(e) => setDraft((d) => ({ ...d, showLogDock: e.target.checked }))}
                       />{' '}
-                      显示底部日志面板（安装/卸载/同步后会写入日志）
+                      {t('settings.appearance.logPanel.label')}
                     </label>
                   </div>
                 </div>
@@ -935,10 +997,10 @@ const SettingsModal: React.FC<{
 
             {pane === 'registry' ? (
               <>
-                <div className="modal-section-title">Project .npmrc</div>
+                <div className="modal-section-title">{t('settings.registry.title')}</div>
                 {!projectDir ? (
                   <div className="muted" style={{ paddingTop: 8 }}>
-                    请选择项目后再配置源（会写入 <code className="mono">&lt;Project&gt;/.npmrc</code>）
+                    {t('settings.registry.needProject')}
                   </div>
                 ) : (
                   <>
@@ -948,7 +1010,7 @@ const SettingsModal: React.FC<{
                         <input
                           className="input"
                           value={draftNpmrc.values?.registry ?? ''}
-                          placeholder="例如 https://registry.npmjs.org/"
+                          placeholder={t('settings.registry.placeholder.registry')}
                           onChange={(e) =>
                             setDraftNpmrc((c) => ({
                               ...c,
@@ -965,7 +1027,7 @@ const SettingsModal: React.FC<{
                         <input
                           className="input"
                           value={draftNpmrc.values?.proxy ?? ''}
-                          placeholder="例如 http://127.0.0.1:7890"
+                          placeholder={t('settings.registry.placeholder.proxy')}
                           onChange={(e) =>
                             setDraftNpmrc((c) => ({
                               ...c,
@@ -982,7 +1044,7 @@ const SettingsModal: React.FC<{
                         <input
                           className="input"
                           value={draftNpmrc.values?.['https-proxy'] ?? ''}
-                          placeholder="例如 http://127.0.0.1:7890"
+                          placeholder={t('settings.registry.placeholder.proxy')}
                           onChange={(e) =>
                             setDraftNpmrc((c) => ({
                               ...c,
@@ -1013,11 +1075,11 @@ const SettingsModal: React.FC<{
                     </div>
 
                     <div className="modal-row">
-                      <div className="k">Scoped Registries</div>
+                      <div className="k">{t('settings.registry.scoped.title')}</div>
                       <div className="v">
                         <div className="modal-actions">
                           <button className="btn" onClick={addScope}>
-                            Add Scope
+                            {t('settings.registry.scoped.add')}
                           </button>
                         </div>
                         {Object.keys(draftNpmrc.scopedRegistries ?? {}).length ? (
@@ -1028,7 +1090,7 @@ const SettingsModal: React.FC<{
                                 <input
                                   className="input"
                                   value={url}
-                                  placeholder="registry url"
+                                  placeholder={t('settings.registry.scoped.placeholder')}
                                   onChange={(e) =>
                                     setDraftNpmrc((c) => ({
                                       ...c,
@@ -1046,21 +1108,21 @@ const SettingsModal: React.FC<{
                                     })
                                   }
                                 >
-                                  Remove
+                                  {t('settings.registry.scoped.remove')}
                                 </button>
                               </div>
                             ))}
                           </div>
                         ) : (
                           <div className="muted" style={{ marginTop: 10 }}>
-                            无 scoped registry
+                            {t('settings.registry.scoped.empty')}
                           </div>
                         )}
                       </div>
                     </div>
 
                     <div className="modal-row">
-                      <div className="k">Registry Test</div>
+                      <div className="k">{t('settings.registry.test.title')}</div>
                       <div className="v">
                         <div className="modal-actions">
                           <button className="btn" onClick={() => void ping()}>
@@ -1073,7 +1135,7 @@ const SettingsModal: React.FC<{
                           </pre>
                         ) : (
                           <div className="muted" style={{ marginTop: 10 }}>
-                            用于快速判断 registry/proxy/auth 是否可用（使用项目 .npmrc）
+                            {t('settings.registry.test.hint')}
                           </div>
                         )}
                       </div>
@@ -1085,14 +1147,14 @@ const SettingsModal: React.FC<{
 
             {pane === 'npm' ? (
               <>
-                <div className="modal-section-title">NPM</div>
+                <div className="modal-section-title">{t('settings.npm.title')}</div>
                 <div className="modal-row">
-                  <div className="k">Npm Executable Path</div>
+                  <div className="k">{t('settings.npm.path')}</div>
                   <div className="v">
                     <input
                       className="input"
                       value={draft.npmExecutablePath ?? ''}
-                      placeholder="空=使用 PATH 中的 npm（Windows: npm.cmd）"
+                      placeholder={t('settings.npm.path.placeholder')}
                       onChange={(e) => setDraft((d) => ({ ...d, npmExecutablePath: e.target.value || null }))}
                     />
                   </div>
@@ -1102,29 +1164,29 @@ const SettingsModal: React.FC<{
 
             {pane === 'linking' ? (
               <>
-                <div className="modal-section-title">Linking</div>
+                <div className="modal-section-title">{t('settings.linking.title')}</div>
                 <div className="modal-row">
-                  <div className="k">Plugins Root Dir</div>
+                  <div className="k">{t('settings.linking.pluginsRoot')}</div>
                   <div className="v">
                     <input
                       className="input"
                       value={draft.pluginsRootDirOverride ?? ''}
-                      placeholder="空=使用 <Project>/Plugins"
+                      placeholder={t('settings.linking.pluginsRoot.placeholder')}
                       onChange={(e) => setDraft((d) => ({ ...d, pluginsRootDirOverride: e.target.value || null }))}
                     />
                     <div className="modal-actions">
                       <button className="btn" onClick={pickPluginsRoot}>
-                        选择…
+                        {t('settings.linking.pick')}
                       </button>
                       <button className="btn" onClick={() => setDraft((d) => ({ ...d, pluginsRootDirOverride: null }))}>
-                        重置
+                        {t('settings.linking.reset')}
                       </button>
                     </div>
                   </div>
                 </div>
 
                 <div className="modal-row">
-                  <div className="k">Auto Link UE Plugins</div>
+                  <div className="k">{t('settings.linking.autoLink')}</div>
                   <div className="v">
                     <label className="chk">
                       <input
@@ -1132,10 +1194,10 @@ const SettingsModal: React.FC<{
                         checked={draft.autoLinkUnrealPlugins}
                         onChange={(e) => setDraft((d) => ({ ...d, autoLinkUnrealPlugins: e.target.checked }))}
                       />{' '}
-                      安装/卸载后自动同步 <code className="mono">node_modules</code> → <code className="mono">Plugins/</code> 链接
+                      {t('settings.linking.autoLink.label')}
                     </label>
                     <div className="muted" style={{ marginTop: 6 }}>
-                      Windows 默认使用 Junction（mklink /J），macOS/Linux 使用 symlink；也可切换为拷贝模式。
+                      {t('settings.linking.autoLink.hint')}
                     </div>
                     <select
                       className="select"
@@ -1143,8 +1205,8 @@ const SettingsModal: React.FC<{
                       onChange={(e) => setDraft((d) => ({ ...d, linkMode: e.target.value as any }))}
                       style={{ marginTop: 8 }}
                     >
-                      <option value="auto">Link (symlink/junction)</option>
-                      <option value="copy">Copy</option>
+                      <option value="auto">{t('settings.linking.mode.link')}</option>
+                      <option value="copy">{t('settings.linking.mode.copy')}</option>
                     </select>
                   </div>
                 </div>
@@ -1155,10 +1217,10 @@ const SettingsModal: React.FC<{
 
         <div className="modal-footer">
           <button className="btn" onClick={() => void onReload()}>
-            重新加载
+            {t('settings.footer.reload')}
           </button>
           <button className="btn primary" onClick={() => void save()}>
-            保存
+            {t('settings.footer.save')}
           </button>
         </div>
       </div>

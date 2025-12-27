@@ -1,15 +1,16 @@
 import React from 'react'
 
 export const EmptyState: React.FC<{
+  icon?: React.ReactNode
   title: string
   description?: React.ReactNode
   children?: React.ReactNode
-}> = ({ title, description, children }) => {
+}> = ({ icon, title, description, children }) => {
   return (
     <div className="ue-empty-wrap">
       <div className="ue-empty-state">
         <div className="ue-empty-icon" aria-hidden="true">
-          空
+          {typeof icon === 'undefined' ? '空' : icon}
         </div>
         <div className="ue-empty-title">{title}</div>
         {description ? <div className="ue-empty-desc">{description}</div> : null}
@@ -18,4 +19,3 @@ export const EmptyState: React.FC<{
     </div>
   )
 }
-

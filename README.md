@@ -1,14 +1,18 @@
 # Unreal Package Manager (Desktop)
 
-跨端桌面端应用（macOS / Windows / Linux），类似 Unity Package Manager，但用于管理 Unreal 插件：
+<p>
+  <a href="README.zh-CN.md"><kbd>中文版本</kbd></a>
+</p>
 
-- 以项目 `package.json` 为入口（dependencies/devDependencies）
-- 在设置里配置项目 `.npmrc`（registry / scoped registries / proxy 等）
-- 远程搜索（npm registry）、预览（readme/versions）
-- 安装 / 卸载 / 升级（调用 `npm install/uninstall/outdated/view/search`）
-- 安装后可把 `node_modules` 里包含 `*.uplugin` 的包自动链接到 `<Project>/Plugins/`（让 UE 可发现）
+Cross-platform desktop app (macOS / Windows / Linux), similar to Unity Package Manager, but for managing Unreal Engine plugins via npm registries:
 
-## 开发
+- Uses your project `package.json` as the entry (dependencies/devDependencies)
+- Configure the project `.npmrc` in Settings (registry / scoped registries / proxy, etc.)
+- Remote search (npm registry) + preview (readme/versions)
+- Install / uninstall / upgrade (via `npm install/uninstall/outdated/view/search`)
+- After install, automatically link any package that contains `*.uplugin` in `node_modules` into `<Project>/Plugins/` so UE can discover it
+
+## Development
 
 ```bash
 cd unreal-package-manager
@@ -16,68 +20,128 @@ npm install
 npm run dev
 ```
 
-注意：`electron-vite dev` 会同时启动一个 renderer 的 dev server（`http://localhost:5173/`）。如果 Electron App 没启动成功（比如 Electron 二进制没装好），你在浏览器里打开这个 URL 只能看到静态页面，**“选择文件夹/安装/卸载”都会无效**（因为 `window.upm` 没有被 preload 注入）。
+Note: `electron-vite dev` starts a renderer dev server at `http://localhost:5173/`. If the Electron app does not launch successfully (e.g. Electron binary not installed), opening that URL in a browser will only show a static page and **actions like “Select Folder / Install / Uninstall” will not work** (because `window.upm` is not injected by the preload script).
 
-### 国内网络（镜像）
+### Mainland China network (mirrors)
 
-如果你在国内网络环境，通常需要同时设置 npm 镜像与 Electron 二进制镜像，否则会出现 `Error: Electron uninstall`。
+If you're behind restricted networks, you may need both an npm registry mirror and an Electron binary mirror, otherwise you can hit `Error: Electron uninstall`.
 
 ```bash
 cd unreal-package-manager
 
-# npm 镜像（也可以用你自己的公司/私服镜像）
+# npm registry mirror (or your own private registry)
 npm config set registry https://registry.npmmirror.com
 
-# Electron 二进制镜像（建议只在安装时临时设置）
+# Electron binary mirror (recommended only during install)
 ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npm install
 
 npm run dev
 ```
 
-## 构建
+## Build
 
 ```bash
 cd unreal-package-manager
 npm run build
 ```
 
-产物输出在 `unreal-package-manager/release/`。
+Artifacts are written to `release/`.
 
-## 设置
+## Settings
 
-应用右上角 `设置` 支持：
+Top-right `Settings` supports:
 
-- 项目 `.npmrc`：配置 `registry` / `@scope:registry` / proxy 等
-- `Plugins Root Dir Override`：自定义目标 Plugins 根目录（默认 `<Project>/Plugins`）
-- `Auto Link UE Plugins`：安装/卸载后自动同步 `node_modules` -> `Plugins/` 链接（Windows 使用 junction）
+- Project `.npmrc`: configure `registry` / `@scope:registry` / proxy, etc.
+- `Plugins Root Dir Override`: override the target Plugins root (default `<Project>/Plugins`)
+- `Auto Link UE Plugins`: after install/uninstall, sync `node_modules` -> `Plugins/` links (Windows uses junction)
 
-如果你配置了公网源但 `My Registry` 里看不到结果：
+If you configured a public registry but see no results under `My Registry`:
 
-- 确认在设置里点了 `保存`（会写入 `<Project>/.npmrc`）
-- 默认开启了 `UE Only` 过滤；公网源大部分包不带 UE 关键字，先关闭该过滤或直接搜索你的包名
-- 在设置里用 `npm ping` 测试 registry/proxy/auth 是否可用
+- Ensure you clicked `Save` in Settings (writes `<Project>/.npmrc`)
+- `UE Only` filter is enabled by default; many public packages don’t include UE keywords — disable it or search by exact package name
+- Use `npm ping` in Settings to validate registry/proxy/auth
+
+## Creating a compliant npm package (UE plugin)
+
+This app detects local UE plugins by scanning each installed package directory in `node_modules` for `*.uplugin` (package root only). To make your package work well:
+
+1) Put `<PluginName>.uplugin` at the root of your npm package (not nested).
+2) Make sure the published tarball includes the `.uplugin`, binaries, content, and resources (use `files` or `.npmignore`).
+3) Add UE keywords so remote search can recognize it (for the built-in `UE Only` filter): `unreal-engine`, `ue5`, `ue4`, `uplugin`, etc.
+4) Use valid npm fields (`name`, `version`, `license`, `description`, etc.); custom fields are allowed.
+
+### Suggested `package.json` template
+
+The app reads both Unreal-style keys (`Category`, `CreatedBy`, `DocsURL`, ...) and camelCase variants (`category`, `createdBy`, `docsURL`, ...). Keep whichever you prefer, but ensure JSON is valid.
+
+```json
+{
+  "name": "com.xxx.xxx",
+  "displayName": "Package Manager SDK",
+  "version": "0.2.1",
+  "description": "An Unreal Engine Game Package Manager SDK",
+  "author": {
+    "name": "Jackson",
+    "email": "apple.developer@email.cn",
+    "url": "https://games.xxx.com"
+  },
+  "license": "MIT",
+  "engines": {
+    "unreal": "^4.27.0"
+  },
+  "Category": "SDK",
+  "CreatedBy": "Games",
+  "CreatedByURL": "https://rightai.com",
+  "DocsURL": "",
+  "MarketplaceURL": "",
+  "SupportURL": "",
+  "EnabledByDefault": true,
+  "CanContainContent": false,
+  "IsBetaVersion": false,
+  "keywords": [
+    "unreal-engine",
+    "ue5",
+    "ue4",
+    "uobject",
+    "plugin"
+  ],
+  "publishConfig": {
+    "registry": "https://your-private-registry.example.com"
+  }
+}
+```
+
+### Minimal publish checklist
+
+- `name`: npm package name (lowercase; scoped `@scope/name` is recommended for private registries)
+- `version`: SemVer (e.g. `0.2.1`)
+- `publishConfig.registry`: your private registry URL (avoid committing credentials into project `.npmrc`)
+- `keywords`: include at least one UE keyword for better discovery
+- Package root contains `*.uplugin`
+
+Tip: run `npm pack --dry-run` before publishing to verify the tarball includes your `.uplugin` and required files.
 
 ## GitHub Actions
 
-工作流位于仓库根目录：`.github/workflows/unreal-package-manager-desktop.yml`  
-推送 tag（例如 `v0.1.0`）后会在 macOS / Windows / Linux 上分别构建，并上传 `release/**` 作为 artifacts，同时发布到对应的 GitHub Release 附件里。
+Workflow is in `.github/workflows/unreal-package-manager-desktop.yml`.  
+Pushing a tag (e.g. `v0.1.0`) builds on macOS / Windows / Linux, uploads `release/**` as artifacts, and publishes them to GitHub Releases.
 
 ```bash
 git tag v0.1.0
 git push origin v0.1.0
 ```
 
-## 常见问题
+## Troubleshooting
 
 ### `Error: Electron uninstall`
 
-这表示 `electron` 包的二进制没下载成功（`node_modules/electron/dist` 缺失），通常是网络/代理导致 postinstall 下载失败，或安装过程被中断。
+This usually means the `electron` binary download failed (`node_modules/electron/dist` missing), often due to network/proxy issues or an interrupted install.
 
 ```bash
 cd unreal-package-manager
 rm -rf node_modules/electron
 
-# 可选：如果你在国内网络环境，先设置镜像再装
+# Optional: if you're behind restricted networks, set mirrors and reinstall
 npm config set registry https://registry.npmmirror.com
 ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npm install
 

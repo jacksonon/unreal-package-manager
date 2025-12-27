@@ -20,6 +20,7 @@ import type {
   PackageListItem,
   ProjectState
 } from '../shared/types'
+import { createTranslator, resolveLanguage } from '../shared/i18n'
 
 const createWindow = async () => {
   const win = new BrowserWindow({
@@ -51,9 +52,16 @@ const createWindow = async () => {
 app.whenReady().then(async () => {
   let settings: AppSettings = await loadSettings()
 
+  const tMain = () => {
+    const locales = [app.getLocale(), ...(app.getPreferredSystemLanguages?.() ?? [])].filter(Boolean)
+    const lang = resolveLanguage(settings.uiLanguage, locales)
+    return createTranslator(lang)
+  }
+
   ipcMain.handle('project:selectDir', async (): Promise<IpcResult<string | null>> => {
+    const t = tMain()
     const res = await dialog.showOpenDialog({
-      title: '选择 Unreal 项目文件夹（包含 .uproject 的目录）',
+      title: t('dialogs.selectProject.title'),
       properties: ['openDirectory']
     })
     if (res.canceled) return { ok: true, data: null }
@@ -63,8 +71,9 @@ app.whenReady().then(async () => {
   ipcMain.handle(
     'dialog:selectDir',
     async (_evt, title: string): Promise<IpcResult<string | null>> => {
+      const t = tMain()
       const res = await dialog.showOpenDialog({
-        title: title || '选择文件夹',
+        title: title || t('dialogs.selectDir.title'),
         properties: ['openDirectory']
       })
       if (res.canceled) return { ok: true, data: null }
@@ -86,6 +95,7 @@ app.whenReady().then(async () => {
           autoLinkUnrealPlugins: patch.autoLinkUnrealPlugins ?? settings.autoLinkUnrealPlugins,
           linkMode: patch.linkMode ?? settings.linkMode,
           theme: patch.theme ?? settings.theme,
+          uiLanguage: patch.uiLanguage ?? settings.uiLanguage,
           ueOnlyFilter: patch.ueOnlyFilter ?? settings.ueOnlyFilter,
           showLogDock: patch.showLogDock ?? settings.showLogDock
         }
@@ -101,7 +111,7 @@ app.whenReady().then(async () => {
     'project:getState',
     async (_evt, projectDir: string | null): Promise<IpcResult<ProjectState>> => {
       try {
-        return { ok: true, data: await getProjectState(projectDir, settings) }
+        return { ok: true, data: await getProjectState(projectDir, settings, tMain()) }
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) }
       }
@@ -151,7 +161,7 @@ app.whenReady().then(async () => {
           { packageName: args.packageName, versionOrTag: args.versionOrTag, dependencyKind: args.dependencyKind },
           settings
         )
-        const state = await getProjectState(args.projectDir, settings)
+        const state = await getProjectState(args.projectDir, settings, tMain())
         state.lastLog = log
         if (linkResult?.warnings?.length) state.warnings.push(...linkResult.warnings)
         if (linkResult?.error) state.warnings.push(linkResult.error)
@@ -167,7 +177,7 @@ app.whenReady().then(async () => {
     async (_evt, args: { projectDir: string; packageName: string }): Promise<IpcResult<ProjectState>> => {
       try {
         const { log, linkResult } = await uninstallPackage(args.projectDir, { packageName: args.packageName }, settings)
-        const state = await getProjectState(args.projectDir, settings)
+        const state = await getProjectState(args.projectDir, settings, tMain())
         state.lastLog = log
         if (linkResult?.warnings?.length) state.warnings.push(...linkResult.warnings)
         if (linkResult?.error) state.warnings.push(linkResult.error)
@@ -183,7 +193,7 @@ app.whenReady().then(async () => {
     async (_evt, args: { projectDir: string; packageName: string }): Promise<IpcResult<ProjectState>> => {
       try {
         const { log, linkResult } = await updatePackage(args.projectDir, { packageName: args.packageName }, settings)
-        const state = await getProjectState(args.projectDir, settings)
+        const state = await getProjectState(args.projectDir, settings, tMain())
         state.lastLog = log
         if (linkResult?.warnings?.length) state.warnings.push(...linkResult.warnings)
         if (linkResult?.error) state.warnings.push(linkResult.error)

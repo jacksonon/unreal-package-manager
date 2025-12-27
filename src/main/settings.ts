@@ -9,6 +9,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   autoLinkUnrealPlugins: true,
   linkMode: 'auto',
   theme: 'system',
+  uiLanguage: 'system',
   ueOnlyFilter: false,
   showLogDock: true
 }
@@ -25,6 +26,7 @@ export const loadSettings = async (): Promise<AppSettings> => {
       autoLinkUnrealPlugins: parsed.autoLinkUnrealPlugins ?? DEFAULT_SETTINGS.autoLinkUnrealPlugins,
       linkMode: parsed.linkMode ?? DEFAULT_SETTINGS.linkMode,
       theme: parsed.theme ?? DEFAULT_SETTINGS.theme,
+      uiLanguage: parsed.uiLanguage ?? DEFAULT_SETTINGS.uiLanguage,
       ueOnlyFilter: parsed.ueOnlyFilter ?? DEFAULT_SETTINGS.ueOnlyFilter,
       showLogDock: parsed.showLogDock ?? DEFAULT_SETTINGS.showLogDock
     }
