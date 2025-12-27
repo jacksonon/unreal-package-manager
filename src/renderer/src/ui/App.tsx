@@ -20,6 +20,7 @@ export const App: React.FC = () => {
   const [query, setQuery] = useState('')
   const [ueOnly, setUeOnly] = useState(true)
   const [remoteItems, setRemoteItems] = useState<PackageListItem[]>([])
+  const [remoteSearched, setRemoteSearched] = useState(false)
   const [selectedName, setSelectedName] = useState<string | null>(null)
 
   const [busy, setBusy] = useState<string | null>(null)
@@ -82,6 +83,7 @@ export const App: React.FC = () => {
     const res = await window.upm.searchRegistry(dir, q, 200)
     if (!res.ok) return setError(res.error)
     setRemoteItems(res.data)
+    setRemoteSearched(true)
   }
 
   useEffect(() => {
@@ -276,7 +278,21 @@ export const App: React.FC = () => {
                 {p.description ? <div className="ue-item-sub">{p.description}</div> : null}
               </button>
             ))}
-            {listItems.length === 0 ? <div className="empty">No packages</div> : null}
+            {listItems.length === 0 ? (
+              <div className="empty">
+                {tab === 'REGISTRY' && remoteSearched ? (
+                  <>
+                    <div className="muted">未找到包。</div>
+                    <div className="muted">如果你配置的是公网源：</div>
+                    <div className="muted">- 请先在设置里点“保存”（写入项目 .npmrc）</div>
+                    <div className="muted">- 试试输入更具体的搜索词</div>
+                    <div className="muted">- 关闭上面的 UE Only 过滤（公网包通常不含 UE 关键字）</div>
+                  </>
+                ) : (
+                  'No packages'
+                )}
+              </div>
+            ) : null}
           </div>
         </aside>
 
@@ -527,6 +543,7 @@ const SettingsModal: React.FC<{
     }
   )
   const [draftNpmrc, setDraftNpmrc] = useState<NpmrcConfig>(npmrc ?? { values: {}, scopedRegistries: {} })
+  const [pingLog, setPingLog] = useState<string | null>(null)
 
   useEffect(() => {
     if (settings) setDraft(settings)
@@ -551,6 +568,13 @@ const SettingsModal: React.FC<{
     if (projectDir) await onSaveNpmrc(draftNpmrc)
     await onReload()
     onClose()
+  }
+
+  const ping = async () => {
+    if (!projectDir) return
+    const res = await window.upm.npmPing(projectDir)
+    if (!res.ok) return setPingLog(res.error)
+    setPingLog(`${res.data.cmd}\n\n${res.data.stdout}\n${res.data.stderr}`.trim())
   }
 
   return (
@@ -742,6 +766,28 @@ const SettingsModal: React.FC<{
             </div>
           </>
         )}
+
+        {projectDir ? (
+          <div className="modal-row">
+            <div className="k">Registry Test</div>
+            <div className="v">
+              <div className="modal-actions">
+                <button className="btn" onClick={() => void ping()}>
+                  npm ping
+                </button>
+              </div>
+              {pingLog ? (
+                <pre className="readme" style={{ marginTop: 10 }}>
+                  {pingLog}
+                </pre>
+              ) : (
+                <div className="muted" style={{ marginTop: 10 }}>
+                  用于快速判断 registry/proxy/auth 是否可用（使用项目 .npmrc）
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
 
         <div className="modal-footer">
           <button className="btn" onClick={onClose}>

@@ -45,7 +45,11 @@ const api = {
   loadNpmrc: async (projectDir: string): Promise<IpcResult<NpmrcConfig>> =>
     ipcRenderer.invoke('npmrc:load', { projectDir }),
   saveNpmrc: async (projectDir: string, npmrc: NpmrcConfig): Promise<IpcResult<boolean>> =>
-    ipcRenderer.invoke('npmrc:save', { projectDir, npmrc })
+    ipcRenderer.invoke('npmrc:save', { projectDir, npmrc }),
+  npmPing: async (
+    projectDir: string
+  ): Promise<IpcResult<{ cmd: string; exitCode: number; stdout: string; stderr: string }>> =>
+    ipcRenderer.invoke('npm:ping', { projectDir })
 }
 
 contextBridge.exposeInMainWorld('upm', api)

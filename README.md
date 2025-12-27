@@ -51,6 +51,12 @@ npm run build
 - `Plugins Root Dir Override`：自定义目标 Plugins 根目录（默认 `<Project>/Plugins`）
 - `Auto Link UE Plugins`：安装/卸载后自动同步 `node_modules` -> `Plugins/` 链接（Windows 使用 junction）
 
+如果你配置了公网源但 `My Registry` 里看不到结果：
+
+- 确认在设置里点了 `保存`（会写入 `<Project>/.npmrc`）
+- 默认开启了 `UE Only` 过滤；公网源大部分包不带 UE 关键字，先关闭该过滤或直接搜索你的包名
+- 在设置里用 `npm ping` 测试 registry/proxy/auth 是否可用
+
 ## GitHub Actions
 
 工作流位于仓库根目录：`.github/workflows/unreal-package-manager-desktop.yml`  

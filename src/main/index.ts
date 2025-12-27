@@ -11,6 +11,7 @@ import {
   uninstallPackage,
   updatePackage
 } from './projectManager'
+import { runNpm } from './npm'
 import type {
   AppSettings,
   IpcResult,
@@ -200,6 +201,19 @@ app.whenReady().then(async () => {
       try {
         await saveProjectNpmrc(args.projectDir, args.npmrc)
         return { ok: true, data: true }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'npm:ping',
+    async (_evt, args: { projectDir: string }): Promise<IpcResult<{ cmd: string; exitCode: number; stdout: string; stderr: string }>> => {
+      try {
+        const npmrc = await loadProjectNpmrc(args.projectDir)
+        const res = await runNpm(['ping'], { cwd: args.projectDir, settings, npmrc, queryForRegistry: '*' })
+        return { ok: true, data: res }
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) }
       }

@@ -31,6 +31,9 @@ declare global {
       syncLinks(projectDir: string): Promise<IpcResult<LinkSyncResult>>
       loadNpmrc(projectDir: string): Promise<IpcResult<NpmrcConfig>>
       saveNpmrc(projectDir: string, npmrc: NpmrcConfig): Promise<IpcResult<boolean>>
+      npmPing(
+        projectDir: string
+      ): Promise<IpcResult<{ cmd: string; exitCode: number; stdout: string; stderr: string }>>
     }
   }
 }
