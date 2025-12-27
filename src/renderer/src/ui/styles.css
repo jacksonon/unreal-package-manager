@@ -21,6 +21,7 @@ body {
   color: var(--text);
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji',
     'Segoe UI Emoji';
+  overflow: hidden;
 }
 
 .mono {
@@ -30,7 +31,8 @@ body {
 .app {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .ue-toolbar {
@@ -148,6 +150,25 @@ body {
   padding: 12px 16px 0 16px;
 }
 
+.ue-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.ue-notices {
+  padding: 0 16px;
+  max-height: 160px;
+  overflow: auto;
+  min-height: 0;
+}
+
+.ue-notices .panel {
+  margin: 12px 0 0 0;
+}
+
 .kv {
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.03);
@@ -182,9 +203,10 @@ body {
   display: grid;
   grid-template-columns: 360px 1fr;
   gap: 12px;
-  padding: 12px 16px 0 16px;
+  padding: 12px 16px 16px 16px;
   min-height: 0;
   flex: 1;
+  overflow: hidden;
 }
 
 .ue-list {
@@ -423,17 +445,78 @@ body {
 }
 
 .modal {
-  width: min(820px, 100%);
+  width: 920px;
+  height: 720px;
+  max-width: 92vw;
+  max-height: 92vh;
   border: 1px solid var(--border);
   background: rgba(16, 24, 38, 0.92);
   backdrop-filter: blur(14px);
   border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 14px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.12);
 }
 
 .modal-title {
   font-weight: 650;
-  margin-bottom: 12px;
+}
+
+.modal-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.modal-sidebar {
+  padding: 12px;
+  border-right: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.12);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-nav {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  border-radius: 10px;
+  padding: 9px 10px;
+  cursor: pointer;
+}
+
+.modal-nav.active {
+  color: var(--text);
+  border-color: rgba(79, 140, 255, 0.38);
+  background: rgba(79, 140, 255, 0.14);
+}
+
+.modal-sidebar-hint {
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  font-size: 12px;
+}
+
+.modal-body {
+  padding: 12px 14px;
+  overflow: auto;
+  min-height: 0;
 }
 
 .modal-section-title {
@@ -465,9 +548,9 @@ body {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  padding-top: 12px;
+  padding: 12px 14px;
   border-top: 1px solid var(--border);
-  margin-top: 12px;
+  background: rgba(0, 0, 0, 0.12);
 }
 
 .scopes {

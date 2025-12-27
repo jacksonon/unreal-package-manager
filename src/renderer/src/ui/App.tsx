@@ -217,108 +217,112 @@ export const App: React.FC = () => {
         </button>
       </header>
 
-      <section className="ue-meta">
-        <div className="kv">
-          <div className="k">Project</div>
-          <div className="v mono">{projectDir ?? '未选择'}</div>
-        </div>
-        <div className="kv">
-          <div className="k">Registry</div>
-          <div className="v mono">{projectState?.npmrc?.values?.registry ?? '(project .npmrc)'}</div>
-        </div>
-        <div className="kv">
-          <div className="k">Plugins Root</div>
-          <div className="v mono">{projectState?.pluginsRootDir ?? '-'}</div>
-        </div>
-      </section>
-
-      {projectState?.warnings?.length ? (
-        <section className="panel warn">
-          {projectState.warnings.map((w) => (
-            <div key={w} className="line">
-              {w}
-            </div>
-          ))}
-        </section>
-      ) : null}
-
-      {error ? (
-        <section className="panel error">
-          <div className="line" style={{ whiteSpace: 'pre-wrap' }}>
-            {error}
+      <div className="ue-content">
+        <section className="ue-meta">
+          <div className="kv">
+            <div className="k">Project</div>
+            <div className="v mono">{projectDir ?? '未选择'}</div>
+          </div>
+          <div className="kv">
+            <div className="k">Registry</div>
+            <div className="v mono">{projectState?.npmrc?.values?.registry ?? '(project .npmrc)'}</div>
+          </div>
+          <div className="kv">
+            <div className="k">Plugins Root</div>
+            <div className="v mono">{projectState?.pluginsRootDir ?? '-'}</div>
           </div>
         </section>
-      ) : null}
 
-      <main className="ue-main">
-        <aside className="ue-list">
-          <div className="ue-list-header">
-            <div className="muted">{projectState ? `${listItems.length} items` : '...'}</div>
-          </div>
-          <div className="ue-list-body">
-            {listItems.map((p) => (
-              <button
-                key={p.name}
-                className={`ue-item ${selectedName === p.name ? 'active' : ''}`}
-                onClick={() => setSelectedName(p.name)}
-              >
-                <div className="ue-item-top">
-                  <div className="ue-item-name">{p.displayName ?? p.name}</div>
-                  <span className={`badge ${p.status}`}>{p.status}</span>
+        <div className="ue-notices">
+          {projectState?.warnings?.length ? (
+            <section className="panel warn">
+              {projectState.warnings.map((w) => (
+                <div key={w} className="line">
+                  {w}
                 </div>
-                <div className="ue-item-sub mono">{p.name}</div>
-                {p.installedVersion ? (
-                  <div className="ue-item-sub mono">
-                    installed {p.installedVersion}
-                    {p.latestVersion ? ` · latest ${p.latestVersion}` : ''}
-                  </div>
-                ) : p.latestVersion ? (
-                  <div className="ue-item-sub mono">latest {p.latestVersion}</div>
-                ) : null}
-                {p.description ? <div className="ue-item-sub">{p.description}</div> : null}
-              </button>
-            ))}
-            {listItems.length === 0 ? (
-              <div className="empty">
-                {tab === 'REGISTRY' && remoteSearched ? (
-                  <>
-                    <div className="muted">未找到包。</div>
-                    <div className="muted">如果你配置的是公网源：</div>
-                    <div className="muted">- 请先在设置里点“保存”（写入项目 .npmrc）</div>
-                    <div className="muted">- 试试输入更具体的搜索词</div>
-                    <div className="muted">- 关闭上面的 UE Only 过滤（公网包通常不含 UE 关键字）</div>
-                  </>
-                ) : (
-                  'No packages'
-                )}
-              </div>
-            ) : null}
-          </div>
-        </aside>
+              ))}
+            </section>
+          ) : null}
 
-        <section className="ue-detail">
-          {!selected ? (
-            <div className="ue-detail-empty">请选择左侧包</div>
-          ) : (
-            <PackageDetail
-              projectDir={projectDir}
-              selected={selected}
-              busy={busy}
-              detailTab={detailTab}
-              setDetailTab={setDetailTab}
-              installKind={installKind}
-              setInstallKind={setInstallKind}
-              installVersionOrTag={installVersionOrTag}
-              setInstallVersionOrTag={setInstallVersionOrTag}
-              onInstall={installSelected}
-              onUninstall={uninstallSelected}
-              onUpdate={updateSelected}
-              onSyncLinks={syncLinksNow}
-              setError={setError}
-            />
-          )}
-        </section>
-      </main>
+          {error ? (
+            <section className="panel error">
+              <div className="line" style={{ whiteSpace: 'pre-wrap' }}>
+                {error}
+              </div>
+            </section>
+          ) : null}
+        </div>
+
+        <main className="ue-main">
+          <aside className="ue-list">
+            <div className="ue-list-header">
+              <div className="muted">{projectState ? `${listItems.length} items` : '...'}</div>
+            </div>
+            <div className="ue-list-body">
+              {listItems.map((p) => (
+                <button
+                  key={p.name}
+                  className={`ue-item ${selectedName === p.name ? 'active' : ''}`}
+                  onClick={() => setSelectedName(p.name)}
+                >
+                  <div className="ue-item-top">
+                    <div className="ue-item-name">{p.displayName ?? p.name}</div>
+                    <span className={`badge ${p.status}`}>{p.status}</span>
+                  </div>
+                  <div className="ue-item-sub mono">{p.name}</div>
+                  {p.installedVersion ? (
+                    <div className="ue-item-sub mono">
+                      installed {p.installedVersion}
+                      {p.latestVersion ? ` · latest ${p.latestVersion}` : ''}
+                    </div>
+                  ) : p.latestVersion ? (
+                    <div className="ue-item-sub mono">latest {p.latestVersion}</div>
+                  ) : null}
+                  {p.description ? <div className="ue-item-sub">{p.description}</div> : null}
+                </button>
+              ))}
+              {listItems.length === 0 ? (
+                <div className="empty">
+                  {tab === 'REGISTRY' && remoteSearched ? (
+                    <>
+                      <div className="muted">未找到包。</div>
+                      <div className="muted">如果你配置的是公网源：</div>
+                      <div className="muted">- 请先在设置里点“保存”（写入项目 .npmrc）</div>
+                      <div className="muted">- 试试输入更具体的搜索词</div>
+                      <div className="muted">- 关闭上面的 UE Only 过滤（公网包通常不含 UE 关键字）</div>
+                    </>
+                  ) : (
+                    'No packages'
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </aside>
+
+          <section className="ue-detail">
+            {!selected ? (
+              <div className="ue-detail-empty">请选择左侧包</div>
+            ) : (
+              <PackageDetail
+                projectDir={projectDir}
+                selected={selected}
+                busy={busy}
+                detailTab={detailTab}
+                setDetailTab={setDetailTab}
+                installKind={installKind}
+                setInstallKind={setInstallKind}
+                installVersionOrTag={installVersionOrTag}
+                setInstallVersionOrTag={setInstallVersionOrTag}
+                onInstall={installSelected}
+                onUninstall={uninstallSelected}
+                onUpdate={updateSelected}
+                onSyncLinks={syncLinksNow}
+                setError={setError}
+              />
+            )}
+          </section>
+        </main>
+      </div>
 
       {showSettings ? (
         <SettingsModal
@@ -544,6 +548,7 @@ const SettingsModal: React.FC<{
   )
   const [draftNpmrc, setDraftNpmrc] = useState<NpmrcConfig>(npmrc ?? { values: {}, scopedRegistries: {} })
   const [pingLog, setPingLog] = useState<string | null>(null)
+  const [pane, setPane] = useState<'registry' | 'npm' | 'linking'>('registry')
 
   useEffect(() => {
     if (settings) setDraft(settings)
@@ -580,219 +585,252 @@ const SettingsModal: React.FC<{
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
       <div className="modal">
-        <div className="modal-title">Settings</div>
-
-        <div className="modal-section-title">NPM & Linking</div>
-        <div className="modal-row">
-          <div className="k">Npm Executable Path</div>
-          <div className="v">
-            <input
-              className="input"
-              value={draft.npmExecutablePath ?? ''}
-              placeholder="空=使用 PATH 中的 npm"
-              onChange={(e) => setDraft((d) => ({ ...d, npmExecutablePath: e.target.value || null }))}
-            />
-          </div>
+        <div className="modal-title-row">
+          <div className="modal-title">Settings</div>
+          <button className="btn" onClick={onClose}>
+            关闭
+          </button>
         </div>
 
-        <div className="modal-row">
-          <div className="k">Plugins Root Dir</div>
-          <div className="v">
-            <input
-              className="input"
-              value={draft.pluginsRootDirOverride ?? ''}
-              placeholder="空=使用 <Project>/Plugins"
-              onChange={(e) => setDraft((d) => ({ ...d, pluginsRootDirOverride: e.target.value || null }))}
-            />
-            <div className="modal-actions">
-              <button className="btn" onClick={pickPluginsRoot}>
-                选择…
-              </button>
-              <button className="btn" onClick={() => setDraft((d) => ({ ...d, pluginsRootDirOverride: null }))}>
-                重置
-              </button>
+        <div className="modal-layout">
+          <div className="modal-sidebar">
+            <button className={`modal-nav ${pane === 'registry' ? 'active' : ''}`} onClick={() => setPane('registry')}>
+              Registry (.npmrc)
+            </button>
+            <button className={`modal-nav ${pane === 'npm' ? 'active' : ''}`} onClick={() => setPane('npm')}>
+              NPM
+            </button>
+            <button className={`modal-nav ${pane === 'linking' ? 'active' : ''}`} onClick={() => setPane('linking')}>
+              Linking
+            </button>
+            <div className="modal-sidebar-hint">
+              <div className="muted">配置会写入：</div>
+              <div className="mono muted">{projectDir ? `${projectDir}/.npmrc` : '<Project>/.npmrc'}</div>
             </div>
           </div>
-        </div>
 
-        <div className="modal-row">
-          <div className="k">Auto Link UE Plugins</div>
-          <div className="v">
-            <label className="chk">
-              <input
-                type="checkbox"
-                checked={draft.autoLinkUnrealPlugins}
-                onChange={(e) => setDraft((d) => ({ ...d, autoLinkUnrealPlugins: e.target.checked }))}
-              />{' '}
-              安装/卸载后自动同步 <code className="mono">node_modules</code> → <code className="mono">Plugins/</code> 链接
-            </label>
-            <div className="muted" style={{ marginTop: 6 }}>
-              Windows 默认使用 Junction（mklink /J），macOS/Linux 使用 symlink；也可切换为拷贝模式。
-            </div>
-            <select
-              className="select"
-              value={draft.linkMode}
-              onChange={(e) => setDraft((d) => ({ ...d, linkMode: e.target.value as any }))}
-              style={{ marginTop: 8 }}
-            >
-              <option value="auto">Link (symlink/junction)</option>
-              <option value="copy">Copy</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="modal-section-title">Project .npmrc (Registry)</div>
-        {!projectDir ? (
-          <div className="muted" style={{ paddingTop: 8 }}>
-            请选择项目后再配置源（会写入 <code className="mono">&lt;Project&gt;/.npmrc</code>）
-          </div>
-        ) : (
-          <>
-            <div className="modal-row">
-              <div className="k">registry</div>
-              <div className="v">
-                <input
-                  className="input"
-                  value={draftNpmrc.values?.registry ?? ''}
-                  placeholder="例如 https://registry.npmjs.org/"
-                  onChange={(e) =>
-                    setDraftNpmrc((c) => ({
-                      ...c,
-                      values: { ...(c.values ?? {}), registry: e.target.value || '' }
-                    }))
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="modal-row">
-              <div className="k">proxy</div>
-              <div className="v">
-                <input
-                  className="input"
-                  value={draftNpmrc.values?.proxy ?? ''}
-                  placeholder="例如 http://127.0.0.1:7890"
-                  onChange={(e) =>
-                    setDraftNpmrc((c) => ({
-                      ...c,
-                      values: { ...(c.values ?? {}), proxy: e.target.value || '' }
-                    }))
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="modal-row">
-              <div className="k">https-proxy</div>
-              <div className="v">
-                <input
-                  className="input"
-                  value={draftNpmrc.values?.['https-proxy'] ?? ''}
-                  placeholder="例如 http://127.0.0.1:7890"
-                  onChange={(e) =>
-                    setDraftNpmrc((c) => ({
-                      ...c,
-                      values: { ...(c.values ?? {}), 'https-proxy': e.target.value || '' }
-                    }))
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="modal-row">
-              <div className="k">strict-ssl</div>
-              <div className="v">
-                <label className="chk">
-                  <input
-                    type="checkbox"
-                    checked={(draftNpmrc.values?.['strict-ssl'] ?? 'true') !== 'false'}
-                    onChange={(e) =>
-                      setDraftNpmrc((c) => ({
-                        ...c,
-                        values: { ...(c.values ?? {}), 'strict-ssl': e.target.checked ? 'true' : 'false' }
-                      }))
-                    }
-                  />{' '}
-                  strict-ssl
-                </label>
-              </div>
-            </div>
-
-            <div className="modal-row">
-              <div className="k">Scoped Registries</div>
-              <div className="v">
-                <div className="modal-actions">
-                  <button className="btn" onClick={addScope}>
-                    Add Scope
-                  </button>
-                </div>
-                {Object.keys(draftNpmrc.scopedRegistries ?? {}).length ? (
-                  <div className="scopes">
-                    {Object.entries(draftNpmrc.scopedRegistries).map(([scope, url]) => (
-                      <div key={scope} className="scope-row">
-                        <div className="mono">{scope}</div>
+          <div className="modal-body">
+            {pane === 'registry' ? (
+              <>
+                <div className="modal-section-title">Project .npmrc</div>
+                {!projectDir ? (
+                  <div className="muted" style={{ paddingTop: 8 }}>
+                    请选择项目后再配置源（会写入 <code className="mono">&lt;Project&gt;/.npmrc</code>）
+                  </div>
+                ) : (
+                  <>
+                    <div className="modal-row">
+                      <div className="k">registry</div>
+                      <div className="v">
                         <input
                           className="input"
-                          value={url}
-                          placeholder="registry url"
+                          value={draftNpmrc.values?.registry ?? ''}
+                          placeholder="例如 https://registry.npmjs.org/"
                           onChange={(e) =>
                             setDraftNpmrc((c) => ({
                               ...c,
-                              scopedRegistries: { ...(c.scopedRegistries ?? {}), [scope]: e.target.value }
+                              values: { ...(c.values ?? {}), registry: e.target.value || '' }
                             }))
                           }
                         />
-                        <button
-                          className="btn danger"
-                          onClick={() =>
-                            setDraftNpmrc((c) => {
-                              const next = { ...(c.scopedRegistries ?? {}) }
-                              delete next[scope]
-                              return { ...c, scopedRegistries: next }
-                            })
-                          }
-                        >
-                          Remove
-                        </button>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="muted" style={{ marginTop: 10 }}>
-                    无 scoped registry
-                  </div>
-                )}
-              </div>
-            </div>
-          </>
-        )}
+                    </div>
 
-        {projectDir ? (
-          <div className="modal-row">
-            <div className="k">Registry Test</div>
-            <div className="v">
-              <div className="modal-actions">
-                <button className="btn" onClick={() => void ping()}>
-                  npm ping
-                </button>
-              </div>
-              {pingLog ? (
-                <pre className="readme" style={{ marginTop: 10 }}>
-                  {pingLog}
-                </pre>
-              ) : (
-                <div className="muted" style={{ marginTop: 10 }}>
-                  用于快速判断 registry/proxy/auth 是否可用（使用项目 .npmrc）
+                    <div className="modal-row">
+                      <div className="k">proxy</div>
+                      <div className="v">
+                        <input
+                          className="input"
+                          value={draftNpmrc.values?.proxy ?? ''}
+                          placeholder="例如 http://127.0.0.1:7890"
+                          onChange={(e) =>
+                            setDraftNpmrc((c) => ({
+                              ...c,
+                              values: { ...(c.values ?? {}), proxy: e.target.value || '' }
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div className="modal-row">
+                      <div className="k">https-proxy</div>
+                      <div className="v">
+                        <input
+                          className="input"
+                          value={draftNpmrc.values?.['https-proxy'] ?? ''}
+                          placeholder="例如 http://127.0.0.1:7890"
+                          onChange={(e) =>
+                            setDraftNpmrc((c) => ({
+                              ...c,
+                              values: { ...(c.values ?? {}), 'https-proxy': e.target.value || '' }
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div className="modal-row">
+                      <div className="k">strict-ssl</div>
+                      <div className="v">
+                        <label className="chk">
+                          <input
+                            type="checkbox"
+                            checked={(draftNpmrc.values?.['strict-ssl'] ?? 'true') !== 'false'}
+                            onChange={(e) =>
+                              setDraftNpmrc((c) => ({
+                                ...c,
+                                values: { ...(c.values ?? {}), 'strict-ssl': e.target.checked ? 'true' : 'false' }
+                              }))
+                            }
+                          />{' '}
+                          strict-ssl
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="modal-row">
+                      <div className="k">Scoped Registries</div>
+                      <div className="v">
+                        <div className="modal-actions">
+                          <button className="btn" onClick={addScope}>
+                            Add Scope
+                          </button>
+                        </div>
+                        {Object.keys(draftNpmrc.scopedRegistries ?? {}).length ? (
+                          <div className="scopes">
+                            {Object.entries(draftNpmrc.scopedRegistries).map(([scope, url]) => (
+                              <div key={scope} className="scope-row">
+                                <div className="mono">{scope}</div>
+                                <input
+                                  className="input"
+                                  value={url}
+                                  placeholder="registry url"
+                                  onChange={(e) =>
+                                    setDraftNpmrc((c) => ({
+                                      ...c,
+                                      scopedRegistries: { ...(c.scopedRegistries ?? {}), [scope]: e.target.value }
+                                    }))
+                                  }
+                                />
+                                <button
+                                  className="btn danger"
+                                  onClick={() =>
+                                    setDraftNpmrc((c) => {
+                                      const next = { ...(c.scopedRegistries ?? {}) }
+                                      delete next[scope]
+                                      return { ...c, scopedRegistries: next }
+                                    })
+                                  }
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="muted" style={{ marginTop: 10 }}>
+                            无 scoped registry
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="modal-row">
+                      <div className="k">Registry Test</div>
+                      <div className="v">
+                        <div className="modal-actions">
+                          <button className="btn" onClick={() => void ping()}>
+                            npm ping
+                          </button>
+                        </div>
+                        {pingLog ? (
+                          <pre className="readme" style={{ marginTop: 10 }}>
+                            {pingLog}
+                          </pre>
+                        ) : (
+                          <div className="muted" style={{ marginTop: 10 }}>
+                            用于快速判断 registry/proxy/auth 是否可用（使用项目 .npmrc）
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </>
+            ) : null}
+
+            {pane === 'npm' ? (
+              <>
+                <div className="modal-section-title">NPM</div>
+                <div className="modal-row">
+                  <div className="k">Npm Executable Path</div>
+                  <div className="v">
+                    <input
+                      className="input"
+                      value={draft.npmExecutablePath ?? ''}
+                      placeholder="空=使用 PATH 中的 npm（Windows: npm.cmd）"
+                      onChange={(e) => setDraft((d) => ({ ...d, npmExecutablePath: e.target.value || null }))}
+                    />
+                  </div>
                 </div>
-              )}
-            </div>
+              </>
+            ) : null}
+
+            {pane === 'linking' ? (
+              <>
+                <div className="modal-section-title">Linking</div>
+                <div className="modal-row">
+                  <div className="k">Plugins Root Dir</div>
+                  <div className="v">
+                    <input
+                      className="input"
+                      value={draft.pluginsRootDirOverride ?? ''}
+                      placeholder="空=使用 <Project>/Plugins"
+                      onChange={(e) => setDraft((d) => ({ ...d, pluginsRootDirOverride: e.target.value || null }))}
+                    />
+                    <div className="modal-actions">
+                      <button className="btn" onClick={pickPluginsRoot}>
+                        选择…
+                      </button>
+                      <button className="btn" onClick={() => setDraft((d) => ({ ...d, pluginsRootDirOverride: null }))}>
+                        重置
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="modal-row">
+                  <div className="k">Auto Link UE Plugins</div>
+                  <div className="v">
+                    <label className="chk">
+                      <input
+                        type="checkbox"
+                        checked={draft.autoLinkUnrealPlugins}
+                        onChange={(e) => setDraft((d) => ({ ...d, autoLinkUnrealPlugins: e.target.checked }))}
+                      />{' '}
+                      安装/卸载后自动同步 <code className="mono">node_modules</code> → <code className="mono">Plugins/</code> 链接
+                    </label>
+                    <div className="muted" style={{ marginTop: 6 }}>
+                      Windows 默认使用 Junction（mklink /J），macOS/Linux 使用 symlink；也可切换为拷贝模式。
+                    </div>
+                    <select
+                      className="select"
+                      value={draft.linkMode}
+                      onChange={(e) => setDraft((d) => ({ ...d, linkMode: e.target.value as any }))}
+                      style={{ marginTop: 8 }}
+                    >
+                      <option value="auto">Link (symlink/junction)</option>
+                      <option value="copy">Copy</option>
+                    </select>
+                  </div>
+                </div>
+              </>
+            ) : null}
           </div>
-        ) : null}
+        </div>
 
         <div className="modal-footer">
-          <button className="btn" onClick={onClose}>
-            取消
-          </button>
           <button className="btn" onClick={() => void onReload()}>
             重新加载
           </button>
