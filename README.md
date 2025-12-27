@@ -60,7 +60,12 @@ npm run build
 ## GitHub Actions
 
 工作流位于仓库根目录：`.github/workflows/unreal-package-manager-desktop.yml`  
-会在 macOS / Windows / Linux 上分别构建，并上传 `unreal-package-manager/release/**` 作为 artifacts。
+推送 tag（例如 `v0.1.0`）后会在 macOS / Windows / Linux 上分别构建，并上传 `release/**` 作为 artifacts，同时发布到对应的 GitHub Release 附件里。
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
 
 ## 常见问题
 
