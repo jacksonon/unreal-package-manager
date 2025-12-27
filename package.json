@@ -11,14 +11,12 @@
   },
   "dependencies": {
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "semver": "^7.6.3"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
-    "@types/semver": "^7.5.8",
     "@vitejs/plugin-react": "^4.3.3",
     "electron": "^33.0.2",
     "electron-builder": "^25.1.8",
@@ -35,12 +33,6 @@
     "files": [
       "dist/**/*",
       "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "../package",
-        "to": "packages"
-      }
     ],
     "mac": {
       "target": [
@@ -62,4 +54,3 @@
     }
   }
 }
-
