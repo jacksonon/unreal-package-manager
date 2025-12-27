@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { AppSettings, LinkSyncResult, NpmrcConfig, PackageListItem, ProjectState } from '@shared/types'
 import { MarkdownView } from './MarkdownView'
+import { EmptyState } from './EmptyState'
 
 type MainTab = 'REGISTRY' | 'PROJECT' | 'UPDATES'
 type DetailTab = 'INFO' | 'README' | 'VERSIONS'
@@ -300,44 +301,44 @@ export const App: React.FC = () => {
 
   return (
     <div className="app ue">
-      <header className="ue-toolbar">
-        {isMac ? <div className="ue-traffic-spacer" aria-hidden="true" /> : null}
-        <div className="ue-title">Unreal Package Manager</div>
+      <header className="ue-topbar">
+        <div className="ue-toolbar">
+          {isMac ? <div className="ue-traffic-spacer" aria-hidden="true" /> : null}
+          <div className="ue-title">Unreal Package Manager</div>
 
-        <div className="ue-tabs">
-          <Tab active={tab === 'REGISTRY'} onClick={() => setTab('REGISTRY')}>
-            My Registry
-          </Tab>
-          <Tab active={tab === 'PROJECT'} onClick={() => setTab('PROJECT')}>
-            In Project
-          </Tab>
-          <Tab active={tab === 'UPDATES'} onClick={() => setTab('UPDATES')}>
-            Updates
-          </Tab>
+          <div className="ue-tabs">
+            <Tab active={tab === 'REGISTRY'} onClick={() => setTab('REGISTRY')}>
+              My Registry
+            </Tab>
+            <Tab active={tab === 'PROJECT'} onClick={() => setTab('PROJECT')}>
+              In Project
+            </Tab>
+            <Tab active={tab === 'UPDATES'} onClick={() => setTab('UPDATES')}>
+              Updates
+            </Tab>
+          </div>
+
+          <div className="ue-spacer" />
+
+          <input
+            className="ue-search"
+            value={query}
+            placeholder={tab === 'REGISTRY' ? 'Search registry...' : 'Filter...'}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+
+          <button className="btn" onClick={selectProject} disabled={busy !== null}>
+            选择项目
+          </button>
+          <button className="btn" onClick={() => void refreshProject(projectDir)} disabled={busy !== null}>
+            刷新
+          </button>
+          <button className="btn" onClick={() => setShowSettings(true)} disabled={!hasElectronBridge()}>
+            设置
+          </button>
         </div>
 
-        <div className="ue-spacer" />
-
-        <input
-          className="ue-search"
-          value={query}
-          placeholder={tab === 'REGISTRY' ? 'Search registry...' : 'Filter...'}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-
-        <button className="btn" onClick={selectProject} disabled={busy !== null}>
-          选择项目
-        </button>
-        <button className="btn" onClick={() => void refreshProject(projectDir)} disabled={busy !== null}>
-          刷新
-        </button>
-        <button className="btn" onClick={() => setShowSettings(true)} disabled={!hasElectronBridge()}>
-          设置
-        </button>
-      </header>
-
-      <div className="ue-content">
-        <section className="ue-meta">
+        <section className="ue-meta ue-meta-top">
           <div className="kv">
             <div className="k">Project</div>
             <div className="v mono">{projectDir ?? '未选择'}</div>
@@ -351,6 +352,9 @@ export const App: React.FC = () => {
             <div className="v mono">{projectState?.pluginsRootDir ?? '-'}</div>
           </div>
         </section>
+      </header>
+
+      <div className="ue-content">
 
         <div className="ue-notices">
           {projectState?.warnings?.length ? (
@@ -381,46 +385,55 @@ export const App: React.FC = () => {
               </div>
             </div>
             <div className="ue-list-body" ref={listBodyRef} onScroll={onListScroll}>
-            {visibleItems.map((p) => (
-              <button
-                key={p.name}
-                className={`ue-item ${selectedName === p.name ? 'active' : ''}`}
-                onClick={() => setSelectedName(p.name)}
-              >
-                <div className="ue-item-top">
-                  <div className="ue-item-name">{p.displayName ?? p.name}</div>
-                  <div className="ue-item-tags">
-                    {p.isUnrealPlugin ? <span className="tag ue">UE</span> : null}
-                    <span className={`badge ${p.status}`}>{statusLabel[p.status]}</span>
-                  </div>
-                </div>
-                <div className="ue-item-sub mono">{p.name}</div>
-                  {p.installedVersion ? (
-                    <div className="ue-item-sub mono">
-                      installed {p.installedVersion}
-                      {p.latestVersion ? ` · latest ${p.latestVersion}` : ''}
+              {listItems.length ? (
+                visibleItems.map((p) => (
+                  <button
+                    key={p.name}
+                    className={`ue-item ${selectedName === p.name ? 'active' : ''}`}
+                    onClick={() => setSelectedName(p.name)}
+                  >
+                    <div className="ue-item-top">
+                      <div className="ue-item-name">{p.displayName ?? p.name}</div>
+                      <div className="ue-item-tags">
+                        {p.isUnrealPlugin ? <span className="tag ue">UE</span> : null}
+                        <span className={`badge ${p.status}`}>{statusLabel[p.status]}</span>
+                      </div>
                     </div>
-                  ) : p.latestVersion ? (
-                    <div className="ue-item-sub mono">latest {p.latestVersion}</div>
+                    <div className="ue-item-sub mono">{p.name}</div>
+                    {p.installedVersion ? (
+                      <div className="ue-item-sub mono">
+                        installed {p.installedVersion}
+                        {p.latestVersion ? ` · latest ${p.latestVersion}` : ''}
+                      </div>
+                    ) : p.latestVersion ? (
+                      <div className="ue-item-sub mono">latest {p.latestVersion}</div>
+                    ) : null}
+                    {p.description ? <div className="ue-item-sub">{p.description}</div> : null}
+                  </button>
+                ))
+              ) : !projectDir ? (
+                <EmptyState title="未选择项目" description="点击右上角“选择项目”后查看内容。" />
+              ) : tab === 'REGISTRY' ? (
+                <EmptyState
+                  title={remoteSearched ? '未找到包' : '开始搜索'}
+                  description={
+                    remoteSearched ? '试试更具体的关键词，或检查 Registry 配置与过滤条件。' : '在上方输入关键词进行搜索。'
+                  }
+                >
+                  {remoteSearched ? (
+                    <div className="muted">
+                      <div>如果你配置的是公网源：</div>
+                      <div>- 请先在设置里点“保存”（写入项目 .npmrc）</div>
+                      <div>- 试试输入更具体的搜索词</div>
+                      <div>- 关闭设置里的 UE Only 过滤（公网包通常不含 UE 关键字）</div>
+                    </div>
                   ) : null}
-                  {p.description ? <div className="ue-item-sub">{p.description}</div> : null}
-                </button>
-              ))}
-              {listItems.length === 0 ? (
-                <div className="empty">
-                  {tab === 'REGISTRY' && remoteSearched ? (
-                    <>
-                      <div className="muted">未找到包。</div>
-                      <div className="muted">如果你配置的是公网源：</div>
-                      <div className="muted">- 请先在设置里点“保存”（写入项目 .npmrc）</div>
-                      <div className="muted">- 试试输入更具体的搜索词</div>
-                      <div className="muted">- 关闭设置里的 UE Only 过滤（公网包通常不含 UE 关键字）</div>
-                    </>
-                  ) : (
-                    'No packages'
-                  )}
-                </div>
-              ) : null}
+                </EmptyState>
+              ) : tab === 'UPDATES' ? (
+                <EmptyState title="暂无更新" description="当前项目没有可更新的包。" />
+              ) : (
+                <EmptyState title="空列表" description="当前项目还没有安装任何包。" />
+              )}
             </div>
           </aside>
 

@@ -53,16 +53,25 @@ jobs:
         with:
           path: dist-artifacts
 
+      - name: Collect release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf release-assets
+          mkdir -p release-assets
+          # Only publish installers/archives + updater metadata. Avoid duplicate/diagnostic files like builder-debug.yml/app-update.yml.
+          find dist-artifacts -type f \
+            \( -name "*.dmg" -o -name "*Setup*.exe" -o -name "*.AppImage" -o -name "*.tar.gz" -o -name "*.zip" -o -name "latest*.yml" -o -name "*.blockmap" \) \
+            ! -name "builder-debug.yml" \
+            ! -name "app-update.yml" \
+            -print0 | while IFS= read -r -d '' f; do
+              cp -f "$f" "release-assets/$(basename "$f")"
+            done
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          overwrite: true
           files: |
-            dist-artifacts/**/*.dmg
-            dist-artifacts/**/*.exe
-            dist-artifacts/**/*.AppImage
-            dist-artifacts/**/*.tar.gz
-            dist-artifacts/**/*.zip
-            dist-artifacts/**/*.yml
-            dist-artifacts/**/*.blockmap
-
+            release-assets/**

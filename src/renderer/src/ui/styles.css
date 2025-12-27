@@ -74,13 +74,16 @@ body {
   overflow: hidden;
 }
 
+.ue-topbar {
+  border-bottom: 1px solid var(--border);
+  background: var(--chrome);
+  backdrop-filter: blur(14px);
+}
+
 .ue-toolbar {
   display: flex;
   align-items: center;
   padding: 14px 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--chrome);
-  backdrop-filter: blur(14px);
   gap: 10px;
   -webkit-app-region: drag;
 }
@@ -215,7 +218,11 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 10px;
-  padding: 12px 16px 0 16px;
+  padding: 10px 16px 12px 16px;
+}
+
+.ue-meta-top {
+  border-top: 1px solid var(--border);
 }
 
 .ue-content {
@@ -241,9 +248,8 @@ body {
   border: 1px solid var(--border);
   background: var(--panel);
   border-radius: 12px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   overflow: hidden;
-  box-shadow: 0 8px 24px var(--shadow);
 }
 
 .k {
@@ -299,6 +305,7 @@ body {
 .ue-list-body {
   overflow: auto;
   min-height: 0;
+  flex: 1;
 }
 
 .ue-item {
@@ -408,6 +415,7 @@ body {
   padding: 12px;
   overflow: auto;
   min-height: 0;
+  flex: 1;
 }
 
 .ue-grid {
@@ -620,6 +628,51 @@ body {
 .empty {
   padding: 18px 12px;
   color: var(--muted);
+}
+
+.ue-empty-wrap {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px 14px;
+}
+
+.ue-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  max-width: 360px;
+}
+
+.ue-empty-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 750;
+  font-size: 20px;
+  letter-spacing: 1px;
+  color: var(--text);
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(79, 140, 255, 0.18), rgba(79, 140, 255, 0.06));
+  box-shadow: 0 10px 28px var(--shadow);
+  user-select: none;
+}
+
+.ue-empty-title {
+  font-weight: 650;
+}
+
+.ue-empty-desc,
+.ue-empty-extra {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.45;
 }
 
 .muted {
