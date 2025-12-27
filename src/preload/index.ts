@@ -9,6 +9,7 @@ import type {
 } from '../shared/types'
 
 const api = {
+  platform: process.platform,
   selectProjectDir: async (): Promise<IpcResult<string | null>> =>
     ipcRenderer.invoke('project:selectDir'),
   selectDir: async (title: string): Promise<IpcResult<string | null>> =>
@@ -49,7 +50,8 @@ const api = {
   npmPing: async (
     projectDir: string
   ): Promise<IpcResult<{ cmd: string; exitCode: number; stdout: string; stderr: string }>> =>
-    ipcRenderer.invoke('npm:ping', { projectDir })
+    ipcRenderer.invoke('npm:ping', { projectDir }),
+  openExternal: async (url: string): Promise<IpcResult<boolean>> => ipcRenderer.invoke('shell:openExternal', url)
 }
 
 contextBridge.exposeInMainWorld('upm', api)

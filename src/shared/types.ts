@@ -62,6 +62,7 @@ export type LinkSyncResult = {
 export type ProjectState = {
   projectDir: string | null
   workingDir: string | null
+  isUnrealProject: boolean
   npmPath: string
   pluginsRootDir: string | null
   npmrc: NpmrcConfig | null
@@ -79,4 +80,7 @@ export type AppSettings = {
   pluginsRootDirOverride: string | null
   autoLinkUnrealPlugins: boolean
   linkMode: 'auto' | 'copy'
+  theme: 'system' | 'dark' | 'light'
+  ueOnlyFilter: boolean
+  showLogDock: boolean
 }

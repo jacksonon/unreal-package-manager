@@ -132,6 +132,7 @@ export const getProjectState = async (
     return {
       projectDir: null,
       workingDir: null,
+      isUnrealProject: false,
       npmPath,
       pluginsRootDir: null,
       npmrc: null,
@@ -144,6 +145,7 @@ export const getProjectState = async (
     return {
       projectDir,
       workingDir: projectDir,
+      isUnrealProject: false,
       npmPath,
       pluginsRootDir: settings.pluginsRootDirOverride ?? path.join(projectDir, 'Plugins'),
       npmrc: null,
@@ -226,6 +228,7 @@ export const getProjectState = async (
   return {
     projectDir,
     workingDir: projectDir,
+    isUnrealProject: !!uproject,
     npmPath,
     pluginsRootDir,
     npmrc,

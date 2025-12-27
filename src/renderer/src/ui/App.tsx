@@ -1,14 +1,49 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import type { AppSettings, NpmrcConfig, PackageListItem, ProjectState } from '@shared/types'
+import type { AppSettings, LinkSyncResult, NpmrcConfig, PackageListItem, ProjectState } from '@shared/types'
+import { MarkdownView } from './MarkdownView'
 
 type MainTab = 'REGISTRY' | 'PROJECT' | 'UPDATES'
-type DetailTab = 'INFO' | 'README' | 'VERSIONS' | 'LOG'
+type DetailTab = 'INFO' | 'README' | 'VERSIONS'
 
 const LS_PROJECT_DIR = 'upm:lastProjectDir'
+const LIST_PAGE_SIZE = 20
 
 const hasElectronBridge = () => typeof window !== 'undefined' && typeof window.upm?.getProjectState === 'function'
 
+const statusLabel: Record<PackageListItem['status'], string> = {
+  remote: 'REGISTRY',
+  installed: 'INSTALLED',
+  update_available: 'UPDATE',
+  missing: 'MISSING'
+}
+
+const formatNpmLog = (log: { cmd: string; stdout: string; stderr: string } | null | undefined) => {
+  if (!log) return ''
+  return `${log.cmd}\n\n${log.stdout}\n${log.stderr}`.trim()
+}
+
+const formatLinkSyncLog = (res: LinkSyncResult) => {
+  const lines: string[] = []
+  lines.push(`Sync Links`)
+  lines.push(`ok: ${res.ok}`)
+  lines.push(`linked: ${res.linked.length}`)
+  lines.push(`removed: ${res.removed.length}`)
+  if (res.warnings?.length) {
+    lines.push('')
+    lines.push('warnings:')
+    lines.push(...res.warnings.map((w) => `- ${w}`))
+  }
+  if (res.error) {
+    lines.push('')
+    lines.push(`error: ${res.error}`)
+  }
+  return lines.join('\n')
+}
+
 export const App: React.FC = () => {
+  const platform = hasElectronBridge() ? window.upm.platform : 'web'
+  const isMac = platform === 'darwin'
+
   const [projectDir, setProjectDir] = useState<string | null>(null)
   const [projectState, setProjectState] = useState<ProjectState | null>(null)
   const [settings, setSettings] = useState<AppSettings | null>(null)
@@ -16,12 +51,16 @@ export const App: React.FC = () => {
 
   const [tab, setTab] = useState<MainTab>('REGISTRY')
   const [detailTab, setDetailTab] = useState<DetailTab>('INFO')
+  const [logVisible, setLogVisible] = useState(false)
+  const [logText, setLogText] = useState<string>('')
 
   const [query, setQuery] = useState('')
-  const [ueOnly, setUeOnly] = useState(true)
   const [remoteItems, setRemoteItems] = useState<PackageListItem[]>([])
   const [remoteSearched, setRemoteSearched] = useState(false)
+  const [remoteLimit, setRemoteLimit] = useState(LIST_PAGE_SIZE)
+  const [remoteLoading, setRemoteLoading] = useState(false)
   const [selectedName, setSelectedName] = useState<string | null>(null)
+  const [visibleCount, setVisibleCount] = useState(LIST_PAGE_SIZE)
 
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -31,6 +70,8 @@ export const App: React.FC = () => {
   const [installVersionOrTag, setInstallVersionOrTag] = useState('latest')
 
   const searchTimer = useRef<number | null>(null)
+  const listBodyRef = useRef<HTMLDivElement | null>(null)
+  const autoSyncedProjectRef = useRef<string | null>(null)
 
   const refreshSettings = async () => {
     if (!hasElectronBridge()) return
@@ -38,6 +79,27 @@ export const App: React.FC = () => {
     if (!res.ok) return setError(res.error)
     setSettings(res.data)
   }
+
+  useEffect(() => {
+    const root = document.documentElement
+    const media = window.matchMedia?.('(prefers-color-scheme: dark)')
+    const effective = (pref: 'system' | 'dark' | 'light') => {
+      if (pref === 'system') return media?.matches ? 'dark' : 'light'
+      return pref
+    }
+    const apply = (pref: 'system' | 'dark' | 'light') => {
+      root.dataset.theme = effective(pref)
+      root.dataset.themePref = pref
+    }
+
+    const pref = settings?.theme ?? 'system'
+    apply(pref)
+
+    if (pref !== 'system' || !media) return
+    const onChange = () => apply('system')
+    media.addEventListener?.('change', onChange)
+    return () => media.removeEventListener?.('change', onChange)
+  }, [settings?.theme])
 
   const refreshProject = async (dir: string | null) => {
     if (!hasElectronBridge()) {
@@ -78,12 +140,17 @@ export const App: React.FC = () => {
     await refreshNpmrc(res.data)
   }
 
-  const doSearch = async (dir: string, q: string) => {
+  const doSearch = async (dir: string, q: string, limit: number) => {
     if (!hasElectronBridge()) return
-    const res = await window.upm.searchRegistry(dir, q, 200)
-    if (!res.ok) return setError(res.error)
-    setRemoteItems(res.data)
-    setRemoteSearched(true)
+    setRemoteLoading(true)
+    try {
+      const res = await window.upm.searchRegistry(dir, q, limit)
+      if (!res.ok) return setError(res.error)
+      setRemoteItems(res.data)
+      setRemoteSearched(true)
+    } finally {
+      setRemoteLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -92,14 +159,21 @@ export const App: React.FC = () => {
     if (!hasElectronBridge()) return
     if (searchTimer.current) window.clearTimeout(searchTimer.current)
     searchTimer.current = window.setTimeout(() => {
-      void doSearch(projectDir, query)
+      void doSearch(projectDir, query, remoteLimit)
     }, 350)
     return () => {
       if (searchTimer.current) window.clearTimeout(searchTimer.current)
     }
-  }, [tab, projectDir, query])
+  }, [tab, projectDir, query, remoteLimit])
+
+  useEffect(() => {
+    setVisibleCount(LIST_PAGE_SIZE)
+    if (tab === 'REGISTRY') setRemoteLimit(LIST_PAGE_SIZE)
+    listBodyRef.current?.scrollTo({ top: 0 })
+  }, [tab, projectDir, query, settings?.ueOnlyFilter])
 
   const listItems = useMemo(() => {
+    const ueOnly = settings?.ueOnlyFilter ?? false
     if (tab === 'REGISTRY') {
       const base = remoteItems
       const filtered = ueOnly ? base.filter((p) => p.isUnrealPlugin) : base
@@ -114,17 +188,38 @@ export const App: React.FC = () => {
     if (!query.trim()) return filtered
     const q = query.trim().toLowerCase()
     return filtered.filter((p) => (p.name + ' ' + (p.description ?? '')).toLowerCase().includes(q))
-  }, [tab, projectState, remoteItems, ueOnly, query])
+  }, [tab, projectState, remoteItems, settings?.ueOnlyFilter, query])
 
   const selected = useMemo(() => {
     if (!selectedName) return null
     return listItems.find((p) => p.name === selectedName) ?? null
   }, [listItems, selectedName])
 
+  const visibleItems = useMemo(() => listItems.slice(0, visibleCount), [listItems, visibleCount])
+
   useEffect(() => {
     if (!selectedName && listItems.length) setSelectedName(listItems[0]!.name)
     if (selectedName && !listItems.some((p) => p.name === selectedName)) setSelectedName(listItems[0]?.name ?? null)
   }, [listItems, selectedName])
+
+  const onListScroll: React.UIEventHandler<HTMLDivElement> = (e) => {
+    const el = e.currentTarget
+    const threshold = 80
+    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - threshold
+    if (!nearBottom) return
+
+    if (visibleCount < listItems.length) setVisibleCount((c) => c + LIST_PAGE_SIZE)
+
+    if (tab === 'REGISTRY' && !remoteLoading && remoteItems.length >= remoteLimit) {
+      setRemoteLimit((n) => n + LIST_PAGE_SIZE)
+    }
+  }
+
+  useEffect(() => {
+    if (!selectedName) return
+    const idx = listItems.findIndex((p) => p.name === selectedName)
+    if (idx >= 0 && idx >= visibleCount) setVisibleCount(idx + 1)
+  }, [selectedName, listItems, visibleCount])
 
   const act = async (key: string, fn: () => Promise<void>) => {
     setError(null)
@@ -142,6 +237,10 @@ export const App: React.FC = () => {
       const res = await window.upm.installPackage(projectDir, selected.name, installVersionOrTag || 'latest', installKind)
       if (!res.ok) return setError(res.error)
       setProjectState(res.data)
+      if (res.data.lastLog) {
+        setLogText(formatNpmLog(res.data.lastLog))
+        if (settings?.showLogDock ?? true) setLogVisible(true)
+      }
       setTab('PROJECT')
     })
   }
@@ -152,6 +251,10 @@ export const App: React.FC = () => {
       const res = await window.upm.uninstallPackage(projectDir, selected.name)
       if (!res.ok) return setError(res.error)
       setProjectState(res.data)
+      if (res.data.lastLog) {
+        setLogText(formatNpmLog(res.data.lastLog))
+        if (settings?.showLogDock ?? true) setLogVisible(true)
+      }
     })
   }
 
@@ -161,6 +264,10 @@ export const App: React.FC = () => {
       const res = await window.upm.updatePackage(projectDir, selected.name)
       if (!res.ok) return setError(res.error)
       setProjectState(res.data)
+      if (res.data.lastLog) {
+        setLogText(formatNpmLog(res.data.lastLog))
+        if (settings?.showLogDock ?? true) setLogVisible(true)
+      }
     })
   }
 
@@ -169,6 +276,8 @@ export const App: React.FC = () => {
     await act('links:sync', async () => {
       const res = await window.upm.syncLinks(projectDir)
       if (!res.ok) return setError(res.error)
+      setLogText(formatLinkSyncLog(res.data))
+      if (settings?.showLogDock ?? true) setLogVisible(true)
       const joined = [...res.data.warnings]
       if (res.data.error) joined.push(res.data.error)
       if (joined.length) setError(joined.join('\n'))
@@ -176,9 +285,23 @@ export const App: React.FC = () => {
     })
   }
 
+  useEffect(() => {
+    if (!projectDir) return
+    if (!projectState?.isUnrealProject) return
+    if (!settings?.autoLinkUnrealPlugins) return
+    if (autoSyncedProjectRef.current === projectDir) return
+    autoSyncedProjectRef.current = projectDir
+    void syncLinksNow()
+  }, [projectDir, projectState?.isUnrealProject, settings?.autoLinkUnrealPlugins])
+
+  useEffect(() => {
+    if (settings?.showLogDock === false) setLogVisible(false)
+  }, [settings?.showLogDock])
+
   return (
     <div className="app ue">
       <header className="ue-toolbar">
+        {isMac ? <div className="ue-traffic-spacer" aria-hidden="true" /> : null}
         <div className="ue-title">Unreal Package Manager</div>
 
         <div className="ue-tabs">
@@ -201,10 +324,6 @@ export const App: React.FC = () => {
           placeholder={tab === 'REGISTRY' ? 'Search registry...' : 'Filter...'}
           onChange={(e) => setQuery(e.target.value)}
         />
-
-        <label className="chk">
-          <input type="checkbox" checked={ueOnly} onChange={(e) => setUeOnly(e.target.checked)} /> UE Only
-        </label>
 
         <button className="btn" onClick={selectProject} disabled={busy !== null}>
           选择项目
@@ -256,20 +375,26 @@ export const App: React.FC = () => {
         <main className="ue-main">
           <aside className="ue-list">
             <div className="ue-list-header">
-              <div className="muted">{projectState ? `${listItems.length} items` : '...'}</div>
+              <div className="muted">
+                {projectState ? `${Math.min(visibleItems.length, listItems.length)} / ${listItems.length} items` : '...'}
+                {tab === 'REGISTRY' && remoteLoading ? ' · loading…' : ''}
+              </div>
             </div>
-            <div className="ue-list-body">
-              {listItems.map((p) => (
-                <button
-                  key={p.name}
-                  className={`ue-item ${selectedName === p.name ? 'active' : ''}`}
-                  onClick={() => setSelectedName(p.name)}
-                >
-                  <div className="ue-item-top">
-                    <div className="ue-item-name">{p.displayName ?? p.name}</div>
-                    <span className={`badge ${p.status}`}>{p.status}</span>
+            <div className="ue-list-body" ref={listBodyRef} onScroll={onListScroll}>
+            {visibleItems.map((p) => (
+              <button
+                key={p.name}
+                className={`ue-item ${selectedName === p.name ? 'active' : ''}`}
+                onClick={() => setSelectedName(p.name)}
+              >
+                <div className="ue-item-top">
+                  <div className="ue-item-name">{p.displayName ?? p.name}</div>
+                  <div className="ue-item-tags">
+                    {p.isUnrealPlugin ? <span className="tag ue">UE</span> : null}
+                    <span className={`badge ${p.status}`}>{statusLabel[p.status]}</span>
                   </div>
-                  <div className="ue-item-sub mono">{p.name}</div>
+                </div>
+                <div className="ue-item-sub mono">{p.name}</div>
                   {p.installedVersion ? (
                     <div className="ue-item-sub mono">
                       installed {p.installedVersion}
@@ -289,7 +414,7 @@ export const App: React.FC = () => {
                       <div className="muted">如果你配置的是公网源：</div>
                       <div className="muted">- 请先在设置里点“保存”（写入项目 .npmrc）</div>
                       <div className="muted">- 试试输入更具体的搜索词</div>
-                      <div className="muted">- 关闭上面的 UE Only 过滤（公网包通常不含 UE 关键字）</div>
+                      <div className="muted">- 关闭设置里的 UE Only 过滤（公网包通常不含 UE 关键字）</div>
                     </>
                   ) : (
                     'No packages'
@@ -318,11 +443,21 @@ export const App: React.FC = () => {
                 onUpdate={updateSelected}
                 onSyncLinks={syncLinksNow}
                 setError={setError}
+                onSetLogText={setLogText}
               />
             )}
           </section>
         </main>
       </div>
+
+      {settings?.showLogDock ?? true ? (
+        <LogDock
+          visible={logVisible}
+          text={logText}
+          onToggle={() => setLogVisible((v) => !v)}
+          onClear={() => setLogText('')}
+        />
+      ) : null}
 
       {showSettings ? (
         <SettingsModal
@@ -363,6 +498,56 @@ const Tab: React.FC<{ active: boolean; onClick: () => void; children: React.Reac
   </button>
 )
 
+const LogDock: React.FC<{
+  visible: boolean
+  text: string
+  onToggle: () => void
+  onClear: () => void
+}> = ({ visible, text, onToggle, onClear }) => {
+  const [copyHint, setCopyHint] = useState<string | null>(null)
+  const bodyRef = useRef<HTMLPreElement | null>(null)
+  const display = text?.trim() ? text : 'No log.'
+
+  useEffect(() => {
+    if (!visible) return
+    const el = bodyRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+  }, [visible, display])
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(display)
+      setCopyHint('Copied')
+      window.setTimeout(() => setCopyHint(null), 1200)
+    } catch (e) {
+      console.error(e)
+      setCopyHint('Copy failed')
+      window.setTimeout(() => setCopyHint(null), 1500)
+    }
+  }
+
+  return (
+    <section className={`ue-logdock ${visible ? 'open' : 'closed'}`} aria-label="Log">
+      <div className="ue-logdock-header">
+        <div className="ue-logdock-title">LOG</div>
+        <div className="ue-logdock-spacer" />
+        {copyHint ? <div className="muted mono">{copyHint}</div> : null}
+        <button className="btn" onClick={onToggle}>
+          {visible ? '隐藏' : '展示'}
+        </button>
+        <button className="btn" onClick={onClear} disabled={!text?.trim()}>
+          清空
+        </button>
+        <button className="btn" onClick={() => void copy()}>
+          复制
+        </button>
+      </div>
+      {visible ? <pre ref={bodyRef} className="ue-logdock-body mono">{display}</pre> : null}
+    </section>
+  )
+}
+
 const PackageDetail: React.FC<{
   projectDir: string | null
   selected: PackageListItem
@@ -378,6 +563,7 @@ const PackageDetail: React.FC<{
   onUpdate: () => Promise<void>
   onSyncLinks: () => Promise<void>
   setError: (v: string | null) => void
+  onSetLogText: (v: string) => void
 }> = ({
   projectDir,
   selected,
@@ -392,24 +578,23 @@ const PackageDetail: React.FC<{
   onUninstall,
   onUpdate,
   onSyncLinks,
-  setError
+  setError,
+  onSetLogText
 }) => {
   const [metadata, setMetadata] = useState<any | null>(null)
-  const [log, setLog] = useState<any | null>(null)
 
   useEffect(() => {
     const load = async () => {
       setError(null)
       setMetadata(null)
-      setLog(null)
       if (!projectDir) return
       const res = await window.upm.getPackageMetadata(projectDir, selected.name)
       if (!res.ok) return setError(res.error)
       setMetadata(res.data.metadata)
-      setLog(res.data.log)
+      if (typeof res.data?.log !== 'undefined') onSetLogText(formatNpmLog(res.data.log))
     }
     void load()
-  }, [projectDir, selected.name])
+  }, [projectDir, selected.name, onSetLogText])
 
   const canAct = !!projectDir && busy === null
 
@@ -434,10 +619,15 @@ const PackageDetail: React.FC<{
                 value={installKind}
                 onChange={(e) => setInstallKind(e.target.value as any)}
                 disabled={!canAct}
+                title="dependencies：项目运行时需要（推荐）；devDependencies：仅开发/构建阶段需要"
               >
-                <option value="runtime">dependencies</option>
-                <option value="dev">devDependencies</option>
+                <option value="runtime">dependencies（推荐）</option>
+                <option value="dev">devDependencies（开发/构建）</option>
               </select>
+              <div className="muted" style={{ flexBasis: '100%' }}>
+                不确定选哪个：一般 UE 插件包用 <span className="mono">dependencies</span>；只有工具链/脚本才放{' '}
+                <span className="mono">devDependencies</span>。
+              </div>
               <input
                 className="input"
                 value={installVersionOrTag}
@@ -479,9 +669,6 @@ const PackageDetail: React.FC<{
         <Tab active={detailTab === 'VERSIONS'} onClick={() => setDetailTab('VERSIONS')}>
           VERSIONS
         </Tab>
-        <Tab active={detailTab === 'LOG'} onClick={() => setDetailTab('LOG')}>
-          LOG
-        </Tab>
       </div>
 
       <div className="ue-detail-body">
@@ -490,13 +677,23 @@ const PackageDetail: React.FC<{
             <InfoRow k="Version" v={metadata?.version ?? selected.latestVersion ?? '-'} mono />
             <InfoRow k="License" v={metadata?.license ?? '-'} mono />
             <InfoRow k="Author" v={metadata?.author ?? '-'} />
-            <InfoRow k="Homepage" v={metadata?.homepageUrl ?? '-'} mono />
-            <InfoRow k="Repository" v={metadata?.repositoryUrl ?? '-'} mono />
+            <InfoRow k="Homepage" v={metadata?.homepageUrl ?? '-'} mono href={metadata?.homepageUrl} />
+            <InfoRow k="Repository" v={metadata?.repositoryUrl ?? '-'} mono href={metadata?.repositoryUrl} />
+            {metadata?.docsUrl ? <InfoRow k="Docs" v={metadata.docsUrl} mono href={metadata.docsUrl} /> : null}
+            {metadata?.marketplaceUrl ? (
+              <InfoRow k="Marketplace" v={metadata.marketplaceUrl} mono href={metadata.marketplaceUrl} />
+            ) : null}
+            {metadata?.supportUrl ? <InfoRow k="Support" v={metadata.supportUrl} mono href={metadata.supportUrl} /> : null}
+            {metadata?.createdByUrl ? (
+              <InfoRow k="CreatedBy" v={metadata?.createdBy ?? metadata.createdByUrl} mono href={metadata.createdByUrl} />
+            ) : metadata?.createdBy ? (
+              <InfoRow k="CreatedBy" v={metadata.createdBy} />
+            ) : null}
           </div>
         ) : null}
 
         {detailTab === 'README' ? (
-          <pre className="readme">{metadata?.readme ?? 'No readme.'}</pre>
+          metadata?.readme ? <MarkdownView markdown={metadata.readme} /> : <div className="muted">No readme.</div>
         ) : null}
 
         {detailTab === 'VERSIONS' ? (
@@ -514,20 +711,51 @@ const PackageDetail: React.FC<{
           </div>
         ) : null}
 
-        {detailTab === 'LOG' ? (
-          <pre className="readme">{log ? `${log.cmd}\n\n${log.stdout}\n${log.stderr}` : 'No log.'}</pre>
-        ) : null}
       </div>
     </>
   )
 }
 
-const InfoRow: React.FC<{ k: string; v: string; mono?: boolean }> = ({ k, v, mono }) => (
-  <div className="ue-inforow">
-    <div className="k">{k}</div>
-    <div className={`v ${mono ? 'mono' : ''}`}>{v}</div>
-  </div>
-)
+const normalizeExternalUrl = (url: string) => {
+  const trimmed = url.trim()
+  if (trimmed.startsWith('git+')) return trimmed.slice('git+'.length)
+  if (trimmed.startsWith('git://')) return `https://${trimmed.slice('git://'.length)}`
+  return trimmed
+}
+
+const openExternal = async (url: string) => {
+  const normalized = normalizeExternalUrl(url)
+  if (typeof window !== 'undefined' && typeof window.upm?.openExternal === 'function') {
+    const res = await window.upm.openExternal(normalized)
+    if (!res.ok) console.error(res.error)
+    return
+  }
+  window.open(normalized, '_blank', 'noopener,noreferrer')
+}
+
+const InfoRow: React.FC<{ k: string; v: string; mono?: boolean; href?: string }> = ({ k, v, mono, href }) => {
+  const canLink = typeof href === 'string' && !!href.trim() && v !== '-'
+  return (
+    <div className="ue-inforow">
+      <div className="k">{k}</div>
+      <div className={`v ${mono ? 'mono' : ''}`}>
+        {canLink ? (
+          <a
+            href={href}
+            onClick={(e) => {
+              e.preventDefault()
+              void openExternal(href).catch((err) => console.error(err))
+            }}
+          >
+            {v}
+          </a>
+        ) : (
+          v
+        )}
+      </div>
+    </div>
+  )
+}
 
 const SettingsModal: React.FC<{
   projectDir: string | null
@@ -543,12 +771,16 @@ const SettingsModal: React.FC<{
       npmExecutablePath: null,
       pluginsRootDirOverride: null,
       autoLinkUnrealPlugins: true,
-      linkMode: 'auto'
+      linkMode: 'auto',
+      theme: 'system',
+      ueOnlyFilter: false,
+      showLogDock: true
     }
   )
   const [draftNpmrc, setDraftNpmrc] = useState<NpmrcConfig>(npmrc ?? { values: {}, scopedRegistries: {} })
   const [pingLog, setPingLog] = useState<string | null>(null)
-  const [pane, setPane] = useState<'registry' | 'npm' | 'linking'>('registry')
+  const [pane, setPane] = useState<'appearance' | 'registry' | 'npm' | 'linking'>('appearance')
+  const didCommitRef = useRef(false)
 
   useEffect(() => {
     if (settings) setDraft(settings)
@@ -556,6 +788,26 @@ const SettingsModal: React.FC<{
   useEffect(() => {
     if (npmrc) setDraftNpmrc(npmrc)
   }, [npmrc])
+
+  useEffect(() => {
+    const root = document.documentElement
+    const media = window.matchMedia?.('(prefers-color-scheme: dark)')
+    const effective = (pref: 'system' | 'dark' | 'light') => {
+      if (pref === 'system') return media?.matches ? 'dark' : 'light'
+      return pref
+    }
+
+    const initialPref = settings?.theme ?? 'system'
+    root.dataset.theme = effective(draft.theme)
+
+    return () => {
+      // If user closes without saving, revert to the original theme preference.
+      // If saved, App-level theme effect owns the final state.
+      if (!didCommitRef.current) {
+        root.dataset.theme = effective(initialPref)
+      }
+    }
+  }, [draft.theme, settings?.theme])
 
   const pickPluginsRoot = async () => {
     const res = await window.upm.selectDir('选择 Plugins 根目录（默认 <Project>/Plugins）')
@@ -569,6 +821,7 @@ const SettingsModal: React.FC<{
   }
 
   const save = async () => {
+    didCommitRef.current = true
     await onSaveSettings(draft)
     if (projectDir) await onSaveNpmrc(draftNpmrc)
     await onReload()
@@ -594,6 +847,12 @@ const SettingsModal: React.FC<{
 
         <div className="modal-layout">
           <div className="modal-sidebar">
+            <button
+              className={`modal-nav ${pane === 'appearance' ? 'active' : ''}`}
+              onClick={() => setPane('appearance')}
+            >
+              Appearance
+            </button>
             <button className={`modal-nav ${pane === 'registry' ? 'active' : ''}`} onClick={() => setPane('registry')}>
               Registry (.npmrc)
             </button>
@@ -610,6 +869,57 @@ const SettingsModal: React.FC<{
           </div>
 
           <div className="modal-body">
+            {pane === 'appearance' ? (
+              <>
+                <div className="modal-section-title">Appearance</div>
+                <div className="modal-row">
+                  <div className="k">Theme</div>
+                  <div className="v">
+                    <select
+                      className="select"
+                      value={draft.theme}
+                      onChange={(e) => setDraft((d) => ({ ...d, theme: e.target.value as any }))}
+                    >
+                      <option value="system">跟随系统</option>
+                      <option value="dark">暗色</option>
+                      <option value="light">亮色</option>
+                    </select>
+                    <div className="muted" style={{ marginTop: 8 }}>
+                      立即预览；保存后会持久化
+                    </div>
+                  </div>
+                </div>
+
+                <div className="modal-row">
+                  <div className="k">UE Only Filter</div>
+                  <div className="v">
+                    <label className="chk">
+                      <input
+                        type="checkbox"
+                        checked={draft.ueOnlyFilter}
+                        onChange={(e) => setDraft((d) => ({ ...d, ueOnlyFilter: e.target.checked }))}
+                      />{' '}
+                      只显示 Unreal 插件包（按关键字/本地 <code className="mono">*.uplugin</code> 识别）
+                    </label>
+                  </div>
+                </div>
+
+                <div className="modal-row">
+                  <div className="k">Log Panel</div>
+                  <div className="v">
+                    <label className="chk">
+                      <input
+                        type="checkbox"
+                        checked={draft.showLogDock}
+                        onChange={(e) => setDraft((d) => ({ ...d, showLogDock: e.target.checked }))}
+                      />{' '}
+                      显示底部日志面板（安装/卸载/同步后会写入日志）
+                    </label>
+                  </div>
+                </div>
+              </>
+            ) : null}
+
             {pane === 'registry' ? (
               <>
                 <div className="modal-section-title">Project .npmrc</div>

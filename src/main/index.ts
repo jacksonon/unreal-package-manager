@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
 import path from 'node:path'
 import { loadSettings, saveSettings } from './settings'
 import { loadProjectNpmrc, saveProjectNpmrc } from './npmrc'
@@ -26,6 +26,12 @@ const createWindow = async () => {
     width: 1100,
     height: 750,
     title: 'Unreal Package Manager',
+    ...(process.platform === 'darwin'
+      ? ({
+          titleBarStyle: 'hiddenInset',
+          trafficLightPosition: { x: 14, y: 14 }
+        } as const)
+      : {}),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -78,7 +84,10 @@ app.whenReady().then(async () => {
           npmExecutablePath: patch.npmExecutablePath ?? settings.npmExecutablePath,
           pluginsRootDirOverride: patch.pluginsRootDirOverride ?? settings.pluginsRootDirOverride,
           autoLinkUnrealPlugins: patch.autoLinkUnrealPlugins ?? settings.autoLinkUnrealPlugins,
-          linkMode: patch.linkMode ?? settings.linkMode
+          linkMode: patch.linkMode ?? settings.linkMode,
+          theme: patch.theme ?? settings.theme,
+          ueOnlyFilter: patch.ueOnlyFilter ?? settings.ueOnlyFilter,
+          showLogDock: patch.showLogDock ?? settings.showLogDock
         }
         await saveSettings(settings)
         return { ok: true, data: settings }
@@ -137,12 +146,16 @@ app.whenReady().then(async () => {
       args: { projectDir: string; packageName: string; versionOrTag: string; dependencyKind: 'runtime' | 'dev' }
     ): Promise<IpcResult<ProjectState>> => {
       try {
-        await installPackage(
+        const { log, linkResult } = await installPackage(
           args.projectDir,
           { packageName: args.packageName, versionOrTag: args.versionOrTag, dependencyKind: args.dependencyKind },
           settings
         )
-        return { ok: true, data: await getProjectState(args.projectDir, settings) }
+        const state = await getProjectState(args.projectDir, settings)
+        state.lastLog = log
+        if (linkResult?.warnings?.length) state.warnings.push(...linkResult.warnings)
+        if (linkResult?.error) state.warnings.push(linkResult.error)
+        return { ok: true, data: state }
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) }
       }
@@ -153,8 +166,12 @@ app.whenReady().then(async () => {
     'package:uninstall',
     async (_evt, args: { projectDir: string; packageName: string }): Promise<IpcResult<ProjectState>> => {
       try {
-        await uninstallPackage(args.projectDir, { packageName: args.packageName }, settings)
-        return { ok: true, data: await getProjectState(args.projectDir, settings) }
+        const { log, linkResult } = await uninstallPackage(args.projectDir, { packageName: args.packageName }, settings)
+        const state = await getProjectState(args.projectDir, settings)
+        state.lastLog = log
+        if (linkResult?.warnings?.length) state.warnings.push(...linkResult.warnings)
+        if (linkResult?.error) state.warnings.push(linkResult.error)
+        return { ok: true, data: state }
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) }
       }
@@ -165,8 +182,12 @@ app.whenReady().then(async () => {
     'package:update',
     async (_evt, args: { projectDir: string; packageName: string }): Promise<IpcResult<ProjectState>> => {
       try {
-        await updatePackage(args.projectDir, { packageName: args.packageName }, settings)
-        return { ok: true, data: await getProjectState(args.projectDir, settings) }
+        const { log, linkResult } = await updatePackage(args.projectDir, { packageName: args.packageName }, settings)
+        const state = await getProjectState(args.projectDir, settings)
+        state.lastLog = log
+        if (linkResult?.warnings?.length) state.warnings.push(...linkResult.warnings)
+        if (linkResult?.error) state.warnings.push(linkResult.error)
+        return { ok: true, data: state }
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) }
       }
@@ -206,6 +227,19 @@ app.whenReady().then(async () => {
       }
     }
   )
+
+  ipcMain.handle('shell:openExternal', async (_evt, url: string): Promise<IpcResult<boolean>> => {
+    try {
+      const u = new URL(String(url))
+      if (u.protocol !== 'http:' && u.protocol !== 'https:' && u.protocol !== 'mailto:') {
+        return { ok: false, error: `Unsupported URL protocol: ${u.protocol}` }
+      }
+      await shell.openExternal(u.toString())
+      return { ok: true, data: true }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
 
   ipcMain.handle(
     'npm:ping',

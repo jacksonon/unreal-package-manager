@@ -7,7 +7,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   npmExecutablePath: null,
   pluginsRootDirOverride: null,
   autoLinkUnrealPlugins: true,
-  linkMode: 'auto'
+  linkMode: 'auto',
+  theme: 'system',
+  ueOnlyFilter: false,
+  showLogDock: true
 }
 
 const settingsFilePath = () => path.join(app.getPath('userData'), 'settings.json')
@@ -20,7 +23,10 @@ export const loadSettings = async (): Promise<AppSettings> => {
       npmExecutablePath: parsed.npmExecutablePath ?? null,
       pluginsRootDirOverride: parsed.pluginsRootDirOverride ?? null,
       autoLinkUnrealPlugins: parsed.autoLinkUnrealPlugins ?? DEFAULT_SETTINGS.autoLinkUnrealPlugins,
-      linkMode: parsed.linkMode ?? DEFAULT_SETTINGS.linkMode
+      linkMode: parsed.linkMode ?? DEFAULT_SETTINGS.linkMode,
+      theme: parsed.theme ?? DEFAULT_SETTINGS.theme,
+      ueOnlyFilter: parsed.ueOnlyFilter ?? DEFAULT_SETTINGS.ueOnlyFilter,
+      showLogDock: parsed.showLogDock ?? DEFAULT_SETTINGS.showLogDock
     }
   } catch {
     return { ...DEFAULT_SETTINGS }

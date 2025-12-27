@@ -10,6 +10,7 @@ import type {
 declare global {
   interface Window {
     upm: {
+      platform: string
       selectProjectDir(): Promise<IpcResult<string | null>>
       selectDir(title: string): Promise<IpcResult<string | null>>
       getSettings(): Promise<IpcResult<AppSettings>>
@@ -34,6 +35,7 @@ declare global {
       npmPing(
         projectDir: string
       ): Promise<IpcResult<{ cmd: string; exitCode: number; stdout: string; stderr: string }>>
+      openExternal(url: string): Promise<IpcResult<boolean>>
     }
   }
 }
