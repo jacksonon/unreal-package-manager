@@ -75,17 +75,57 @@ body {
 }
 
 .ue-topbar {
-  border-bottom: 1px solid var(--border);
-  background: var(--chrome);
-  backdrop-filter: blur(14px);
+  position: relative;
+  z-index: 10;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.ue-window-chrome {
+  height: 0;
+  -webkit-app-region: drag;
+}
+
+.app.is-mac .ue-window-chrome {
+  height: 32px;
 }
 
 .ue-toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   padding: 14px 16px;
   gap: 10px;
   -webkit-app-region: drag;
+}
+
+.ue-toolbar-left {
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.btn.ue-projects-toggle {
+  padding: 8px 10px;
+}
+
+.btn.ue-projects-toggle.active {
+  border-color: rgba(79, 140, 255, 0.42);
+  background: linear-gradient(180deg, rgba(79, 140, 255, 0.18), rgba(79, 140, 255, 0.06));
+}
+
+.ue-toolbar-right {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ue-title {
+  justify-self: center;
 }
 
 .ue-toolbar button,

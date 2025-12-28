@@ -439,33 +439,39 @@ export const App: React.FC = () => {
     return recentProjects.filter((p) => p.toLowerCase().includes(q))
   }, [recentProjects, projectSearch])
 
+  const toggleProjectPanel = () => {
+    setProjectPanelOpen((v) => {
+      const next = !v
+      localStorage.setItem(LS_PROJECT_PANEL_OPEN, next ? '1' : '0')
+      return next
+    })
+  }
+
   return (
-    <div className={`app ue ${projectPanelOpen ? 'with-projects' : ''}`}>
+    <div className={`app ue ${isMac ? 'is-mac' : ''} ${projectPanelOpen ? 'with-projects' : ''}`}>
       <header className="ue-topbar">
+        <div className="ue-window-chrome" aria-hidden="true" />
         <div className="ue-toolbar">
-          {isMac ? <div className="ue-traffic-spacer" aria-hidden="true" /> : null}
+          <div className="ue-toolbar-left">
+            <button
+              className={`btn ue-projects-toggle ${projectPanelOpen ? 'active' : ''}`}
+              onClick={toggleProjectPanel}
+              aria-label={projectPanelOpen ? t('projects.toggle.hide') : t('projects.toggle.show')}
+              title={projectPanelOpen ? t('projects.toggle.hide') : t('projects.toggle.show')}
+            >
+              <Icon><IconSidebar /></Icon>
+              {projectPanelOpen ? t('projects.toggle.hide') : t('projects.toggle.show')}
+            </button>
+          </div>
+
           <div className="ue-title">{t('app.title')}</div>
 
-          <div className="ue-spacer" />
-
-          <button
-            className="ue-icon-btn"
-            onClick={() => {
-              setProjectPanelOpen((v) => {
-                const next = !v
-                localStorage.setItem(LS_PROJECT_PANEL_OPEN, next ? '1' : '0')
-                return next
-              })
-            }}
-            aria-label={projectPanelOpen ? t('projects.toggle.hide') : t('projects.toggle.show')}
-            title={projectPanelOpen ? t('projects.toggle.hide') : t('projects.toggle.show')}
-          >
-            <Icon><IconSidebar /></Icon>
-          </button>
-          <button className="btn" onClick={() => setShowSettings(true)} disabled={!hasElectronBridge()}>
-            <Icon><IconGear /></Icon>
-            {t('actions.settings')}
-          </button>
+          <div className="ue-toolbar-right">
+            <button className="btn" onClick={() => setShowSettings(true)} disabled={!hasElectronBridge()}>
+              <Icon><IconGear /></Icon>
+              {t('actions.settings')}
+            </button>
+          </div>
         </div>
       </header>
 
