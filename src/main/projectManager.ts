@@ -391,8 +391,12 @@ export const installPackage = async (
   if (log.exitCode !== 0) throw new Error(log.stderr || 'npm install failed')
 
   let linkResult = null
-  if (settings.autoLinkUnrealPlugins) {
-    linkResult = await syncUePluginLinks(projectDir, settings.pluginsRootDirOverride ?? path.join(projectDir, 'Plugins'), settings.linkMode)
+  if (settings.autoLinkUnrealPlugins && (await findUproject(projectDir))) {
+    linkResult = await syncUePluginLinks(
+      projectDir,
+      settings.pluginsRootDirOverride ?? path.join(projectDir, 'Plugins'),
+      settings.linkMode
+    )
   }
   return { log, linkResult }
 }
@@ -412,8 +416,12 @@ export const uninstallPackage = async (
   if (log.exitCode !== 0) throw new Error(log.stderr || 'npm uninstall failed')
 
   let linkResult = null
-  if (settings.autoLinkUnrealPlugins) {
-    linkResult = await syncUePluginLinks(projectDir, settings.pluginsRootDirOverride ?? path.join(projectDir, 'Plugins'), settings.linkMode)
+  if (settings.autoLinkUnrealPlugins && (await findUproject(projectDir))) {
+    linkResult = await syncUePluginLinks(
+      projectDir,
+      settings.pluginsRootDirOverride ?? path.join(projectDir, 'Plugins'),
+      settings.linkMode
+    )
   }
   return { log, linkResult }
 }
@@ -433,13 +441,20 @@ export const updatePackage = async (
   if (log.exitCode !== 0) throw new Error(log.stderr || 'npm update failed')
 
   let linkResult = null
-  if (settings.autoLinkUnrealPlugins) {
-    linkResult = await syncUePluginLinks(projectDir, settings.pluginsRootDirOverride ?? path.join(projectDir, 'Plugins'), settings.linkMode)
+  if (settings.autoLinkUnrealPlugins && (await findUproject(projectDir))) {
+    linkResult = await syncUePluginLinks(
+      projectDir,
+      settings.pluginsRootDirOverride ?? path.join(projectDir, 'Plugins'),
+      settings.linkMode
+    )
   }
   return { log, linkResult }
 }
 
 export const syncLinks = async (projectDir: string, settings: AppSettings) => {
+  if (!(await findUproject(projectDir))) {
+    return { ok: true, linked: [], removed: [], warnings: [], error: undefined }
+  }
   return syncUePluginLinks(
     projectDir,
     settings.pluginsRootDirOverride ?? path.join(projectDir, 'Plugins'),

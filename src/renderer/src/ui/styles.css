@@ -818,6 +818,22 @@ body {
   background: var(--panel);
   border-radius: 12px;
   padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ue-version.active {
+  border-color: rgba(79, 140, 255, 0.42);
+  background: linear-gradient(180deg, rgba(79, 140, 255, 0.12), rgba(79, 140, 255, 0.04));
+}
+
+.ue-version-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .readme {
@@ -1148,6 +1164,37 @@ body {
   display: flex;
   flex-direction: column;
   box-shadow: 0 18px 48px var(--shadow);
+}
+
+.modal.version-modal {
+  width: 620px;
+  height: 620px;
+  max-width: 92vw;
+  max-height: 92vh;
+}
+
+.version-modal-body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  flex: 1;
+}
+
+.version-modal-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.version-modal-list {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .modal-title-row {

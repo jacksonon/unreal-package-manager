@@ -83,6 +83,8 @@ const en = {
   'detail.action.update': 'Update',
   'detail.action.remove': 'Remove',
   'detail.action.syncLinks': 'Sync Links',
+  'detail.action.useVersion': 'Use',
+  'detail.versionPicker.title': 'Select version',
 
   'detail.installKind.title': 'dependencies: runtime (recommended); devDependencies: dev/build only',
   'detail.installKind.runtime': 'dependencies (recommended)',
@@ -277,6 +279,8 @@ const zh: Record<MessageKey, string> = {
   'detail.action.update': '更新',
   'detail.action.remove': '移除',
   'detail.action.syncLinks': '同步链接',
+  'detail.action.useVersion': '切换',
+  'detail.versionPicker.title': '选择版本',
 
   'detail.installKind.title': 'dependencies：项目运行时需要（推荐）；devDependencies：仅开发/构建阶段需要',
   'detail.installKind.runtime': 'dependencies（推荐）',
@@ -467,6 +471,8 @@ const ja: Record<MessageKey, string> = {
   'detail.action.update': '更新',
   'detail.action.remove': '削除',
   'detail.action.syncLinks': 'リンク同期',
+  'detail.action.useVersion': '切替',
+  'detail.versionPicker.title': 'バージョン選択',
 
   'detail.installKind.title': 'dependencies: 実行時（推奨）; devDependencies: 開発/ビルドのみ',
   'detail.installKind.runtime': 'dependencies（推奨）',
@@ -658,6 +664,8 @@ const ko: Record<MessageKey, string> = {
   'detail.action.update': '업데이트',
   'detail.action.remove': '제거',
   'detail.action.syncLinks': '링크 동기화',
+  'detail.action.useVersion': '전환',
+  'detail.versionPicker.title': '버전 선택',
 
   'detail.installKind.title': 'dependencies: 런타임(권장); devDependencies: 개발/빌드 전용',
   'detail.installKind.runtime': 'dependencies(권장)',
@@ -849,6 +857,8 @@ const fr: Record<MessageKey, string> = {
   'detail.action.update': 'Mettre à jour',
   'detail.action.remove': 'Supprimer',
   'detail.action.syncLinks': 'Synchroniser les liens',
+  'detail.action.useVersion': 'Utiliser',
+  'detail.versionPicker.title': 'Choisir une version',
 
   'detail.installKind.title': 'dependencies : runtime (recommandé) ; devDependencies : dev/build uniquement',
   'detail.installKind.runtime': 'dependencies (recommandé)',
@@ -1041,6 +1051,8 @@ const de: Record<MessageKey, string> = {
   'detail.action.update': 'Update',
   'detail.action.remove': 'Entfernen',
   'detail.action.syncLinks': 'Links synchronisieren',
+  'detail.action.useVersion': 'Verwenden',
+  'detail.versionPicker.title': 'Version auswählen',
 
   'detail.installKind.title': 'dependencies: Laufzeit (empfohlen); devDependencies: nur Dev/Build',
   'detail.installKind.runtime': 'dependencies (empfohlen)',
@@ -1233,6 +1245,8 @@ const ru: Record<MessageKey, string> = {
   'detail.action.update': 'Обновить',
   'detail.action.remove': 'Удалить',
   'detail.action.syncLinks': 'Синхр. ссылки',
+  'detail.action.useVersion': 'Выбрать',
+  'detail.versionPicker.title': 'Выбор версии',
 
   'detail.installKind.title': 'dependencies: runtime (рекомендуется); devDependencies: только dev/build',
   'detail.installKind.runtime': 'dependencies (рекомендуется)',

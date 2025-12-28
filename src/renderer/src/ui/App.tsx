@@ -398,6 +398,7 @@ export const App: React.FC = () => {
 
   const syncLinksNow = async () => {
     if (!projectDir) return
+    if (!projectState?.isUnrealProject) return
     await act('links:sync', async () => {
       const res = await window.upm.syncLinks(projectDir)
       if (!res.ok) return setError(res.error)
@@ -407,6 +408,22 @@ export const App: React.FC = () => {
       if (res.data.error) joined.push(res.data.error)
       if (joined.length) setError(joined.join('\n'))
       await refreshProject(projectDir)
+    })
+  }
+
+  const installSelectedVersion = async (version: string) => {
+    if (!projectDir || !selected) return
+    setInstallVersionOrTag(version)
+    const kind = selected.dependencyKind ?? installKind
+    await act(`install:${selected.name}@${version}`, async () => {
+      const res = await window.upm.installPackage(projectDir, selected.name, version || 'latest', kind)
+      if (!res.ok) return setError(res.error)
+      setProjectState(res.data)
+      if (res.data.lastLog) {
+        setLogText(formatNpmLog(res.data.lastLog))
+        if (settings?.showLogDock ?? true) setLogVisible(true)
+      }
+      setTab('PROJECT')
     })
   }
 
@@ -723,6 +740,7 @@ export const App: React.FC = () => {
                 projectDir={projectDir}
                 selected={selected}
                 busy={busy}
+                isUnrealProject={!!projectState?.isUnrealProject}
                 detailTab={detailTab}
                 setDetailTab={setDetailTab}
                 installKind={installKind}
@@ -730,6 +748,7 @@ export const App: React.FC = () => {
                 installVersionOrTag={installVersionOrTag}
                 setInstallVersionOrTag={setInstallVersionOrTag}
                 onInstall={installSelected}
+                onInstallVersion={installSelectedVersion}
                 onUninstall={uninstallSelected}
                 onUpdate={updateSelected}
                 onSyncLinks={syncLinksNow}
@@ -907,6 +926,7 @@ const PackageDetail: React.FC<{
   projectDir: string | null
   selected: PackageListItem
   busy: string | null
+  isUnrealProject: boolean
   detailTab: DetailTab
   setDetailTab: (t: DetailTab) => void
   installKind: 'runtime' | 'dev'
@@ -914,6 +934,7 @@ const PackageDetail: React.FC<{
   installVersionOrTag: string
   setInstallVersionOrTag: (v: string) => void
   onInstall: () => Promise<void>
+  onInstallVersion: (version: string) => Promise<void>
   onUninstall: () => Promise<void>
   onUpdate: () => Promise<void>
   onSyncLinks: () => Promise<void>
@@ -923,6 +944,7 @@ const PackageDetail: React.FC<{
   projectDir,
   selected,
   busy,
+  isUnrealProject,
   detailTab,
   setDetailTab,
   installKind,
@@ -930,6 +952,7 @@ const PackageDetail: React.FC<{
   installVersionOrTag,
   setInstallVersionOrTag,
   onInstall,
+  onInstallVersion,
   onUninstall,
   onUpdate,
   onSyncLinks,
@@ -938,6 +961,19 @@ const PackageDetail: React.FC<{
 }) => {
   const { t } = useI18n()
   const [metadata, setMetadata] = useState<any | null>(null)
+  const [showVersionPicker, setShowVersionPicker] = useState(false)
+  const [versionFilter, setVersionFilter] = useState('')
+
+  const allVersions = useMemo(() => {
+    const v = (metadata?.versions ?? []) as string[]
+    return Array.isArray(v) ? v.slice().reverse() : []
+  }, [metadata?.versions])
+
+  const filteredVersions = useMemo(() => {
+    const q = versionFilter.trim().toLowerCase()
+    if (!q) return allVersions.slice(0, 200)
+    return allVersions.filter((v) => v.toLowerCase().includes(q)).slice(0, 200)
+  }, [allVersions, versionFilter])
 
   useEffect(() => {
     const load = async () => {
@@ -999,7 +1035,14 @@ const PackageDetail: React.FC<{
           ) : null}
 
           {selected.status === 'update_available' ? (
-            <button className="btn primary" onClick={() => void onUpdate()} disabled={!canAct}>
+            <button
+              className="btn primary"
+              onClick={() => {
+                setVersionFilter('')
+                setShowVersionPicker(true)
+              }}
+              disabled={!canAct}
+            >
               {t('detail.action.update')}
             </button>
           ) : null}
@@ -1010,7 +1053,12 @@ const PackageDetail: React.FC<{
             </button>
           ) : null}
 
-          <button className="btn" onClick={() => void onSyncLinks()} disabled={!canAct}>
+          <button
+            className="btn"
+            onClick={() => void onSyncLinks()}
+            disabled={!canAct || !isUnrealProject}
+            title={!isUnrealProject ? t('warn.noUproject') : ''}
+          >
             {t('detail.action.syncLinks')}
           </button>
         </div>
@@ -1069,9 +1117,21 @@ const PackageDetail: React.FC<{
           <div className="ue-versions">
             {(metadata?.versions ?? []).length ? (
               (metadata.versions ?? []).slice().reverse().slice(0, 80).map((v: string) => (
-                <div key={v} className="ue-version">
-                  <div className="mono">{v}</div>
-                  <div className="mono muted">{metadata?.time?.[v] ?? ''}</div>
+                <div key={v} className={`ue-version ${selected.installedVersion === v ? 'active' : ''}`}>
+                  <div className="ue-version-main">
+                    <div className="mono">{v}</div>
+                    <div className="mono muted">{metadata?.time?.[v] ?? ''}</div>
+                  </div>
+                  {projectDir ? (
+                    <button
+                      className="btn"
+                      disabled={!canAct || selected.installedVersion === v}
+                      onClick={() => void onInstallVersion(v)}
+                      title={selected.installedVersion === v ? t('detail.installed', { version: v }) : ''}
+                    >
+                      {t('detail.action.useVersion')}
+                    </button>
+                  ) : null}
                 </div>
               ))
             ) : (
@@ -1081,6 +1141,73 @@ const PackageDetail: React.FC<{
         ) : null}
 
       </div>
+
+      {showVersionPicker ? (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowVersionPicker(false)
+          }}
+        >
+          <div className="modal version-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-title-row">
+              <div className="modal-title">{t('detail.versionPicker.title')}</div>
+              <button className="btn" onClick={() => setShowVersionPicker(false)}>
+                {t('settings.close')}
+              </button>
+            </div>
+
+            <div className="version-modal-body">
+              <div className="version-modal-meta">
+                <div className="mono">{selected.name}</div>
+                <div className="muted mono">
+                  {selected.installedVersion
+                    ? t('detail.installed', { version: selected.installedVersion })
+                    : t('detail.notInstalled')}
+                  {selected.latestVersion ? t('detail.latest', { version: selected.latestVersion }) : ''}
+                </div>
+              </div>
+
+              <input
+                className="input"
+                value={versionFilter}
+                onChange={(e) => setVersionFilter(e.target.value)}
+                placeholder={t('search.filter.placeholder')}
+                autoFocus
+              />
+
+              <div className="version-modal-list">
+                {filteredVersions.length ? (
+                  filteredVersions.map((v) => (
+                    <div key={v} className={`ue-version ${selected.installedVersion === v ? 'active' : ''}`}>
+                      <div className="ue-version-main">
+                        <div className="mono">{v}</div>
+                        <div className="mono muted">{metadata?.time?.[v] ?? ''}</div>
+                      </div>
+                      <button
+                        className="btn"
+                        disabled={!canAct || selected.installedVersion === v}
+                        onClick={() => {
+                          void (async () => {
+                            await onInstallVersion(v)
+                            setShowVersionPicker(false)
+                          })()
+                        }}
+                      >
+                        {t('detail.action.useVersion')}
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <div className="muted">{t('detail.noVersions')}</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   )
 }
