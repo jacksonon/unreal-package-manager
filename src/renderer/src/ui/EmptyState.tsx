@@ -9,9 +9,11 @@ export const EmptyState: React.FC<{
   return (
     <div className="ue-empty-wrap">
       <div className="ue-empty-state">
-        <div className="ue-empty-icon" aria-hidden="true">
-          {typeof icon === 'undefined' ? '空' : icon}
-        </div>
+        {typeof icon !== 'undefined' ? (
+          <div className="ue-empty-icon" aria-hidden="true">
+            {icon}
+          </div>
+        ) : null}
         <div className="ue-empty-title">{title}</div>
         {description ? <div className="ue-empty-desc">{description}</div> : null}
         {children ? <div className="ue-empty-extra">{children}</div> : null}

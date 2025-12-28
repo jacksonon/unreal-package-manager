@@ -10,6 +10,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   linkMode: 'auto',
   theme: 'system',
   uiLanguage: 'system',
+  rememberRecentProjects: true,
   ueOnlyFilter: false,
   showLogDock: true
 }
@@ -27,6 +28,7 @@ export const loadSettings = async (): Promise<AppSettings> => {
       linkMode: parsed.linkMode ?? DEFAULT_SETTINGS.linkMode,
       theme: parsed.theme ?? DEFAULT_SETTINGS.theme,
       uiLanguage: parsed.uiLanguage ?? DEFAULT_SETTINGS.uiLanguage,
+      rememberRecentProjects: parsed.rememberRecentProjects ?? DEFAULT_SETTINGS.rememberRecentProjects,
       ueOnlyFilter: parsed.ueOnlyFilter ?? DEFAULT_SETTINGS.ueOnlyFilter,
       showLogDock: parsed.showLogDock ?? DEFAULT_SETTINGS.showLogDock
     }

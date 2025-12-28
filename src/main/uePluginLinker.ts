@@ -168,7 +168,7 @@ export const syncUePluginLinks = async (
     const linkPath = path.join(destFull, pluginName)
     if (await exists(linkPath)) {
       const link = await isSymlink(linkPath)
-      if (!link && process.platform !== 'win32') {
+      if (!link && mode !== 'copy' && process.platform !== 'win32') {
         result.warnings.push(`Managed link '${linkPath}' exists but is not a link (manifest entry removed).`)
         result.removed.push(rec)
         continue
@@ -209,4 +209,3 @@ export const syncUePluginLinks = async (
   result.ok = true
   return result
 }
-

@@ -70,6 +70,7 @@ export type ProjectState = {
   npmrc: NpmrcConfig | null
   packages: PackageListItem[]
   warnings: string[]
+  alerts?: string[]
   lastLog?: { cmd: string; exitCode: number; stdout: string; stderr: string }
 }
 
@@ -84,6 +85,7 @@ export type AppSettings = {
   linkMode: 'auto' | 'copy'
   theme: 'system' | 'dark' | 'light'
   uiLanguage: UiLanguage
+  rememberRecentProjects: boolean
   ueOnlyFilter: boolean
   showLogDock: boolean
 }

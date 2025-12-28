@@ -4,13 +4,27 @@ import type { MessageKey } from '@shared/i18n'
 import { MarkdownView } from './MarkdownView'
 import { EmptyState } from './EmptyState'
 import { useI18n } from './i18n'
-import { Icon, IconArrowUp, IconChevron, IconFolder, IconGear, IconGlobe, IconPlugin, IconRefresh, IconSearch } from './icons'
+import {
+  Icon,
+  IconArrowUp,
+  IconChevron,
+  IconFolder,
+  IconGear,
+  IconGlobe,
+  IconPlugin,
+  IconRefresh,
+  IconSearch,
+  IconSidebar
+} from './icons'
 
 type MainTab = 'REGISTRY' | 'PROJECT' | 'UPDATES'
 type DetailTab = 'INFO' | 'README' | 'VERSIONS'
 
 const LS_PROJECT_DIR = 'upm:lastProjectDir'
-const LS_LIST_CONTEXT_OPEN = 'upm:listContextOpen'
+const LS_RECENT_PROJECTS = 'upm:recentProjects'
+const LS_PROJECT_PANEL_OPEN = 'upm:projectPanelOpen'
+const LS_REMEMBER_PROJECTS = 'upm:rememberRecentProjectsFallback'
+const LS_PROJECT_CONTEXT_OPEN = 'upm:projectContextOpen'
 const LIST_PAGE_SIZE = 20
 
 const hasElectronBridge = () => typeof window !== 'undefined' && typeof window.upm?.getProjectState === 'function'
@@ -54,6 +68,11 @@ export const App: React.FC = () => {
   const [projectState, setProjectState] = useState<ProjectState | null>(null)
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [npmrc, setNpmrc] = useState<NpmrcConfig | null>(null)
+  const [projectPanelOpen, setProjectPanelOpen] = useState(true)
+  const [projectSearch, setProjectSearch] = useState('')
+  const [recentProjects, setRecentProjects] = useState<string[]>([])
+  const [projectContextOpen, setProjectContextOpen] = useState(true)
+  const [projectMenu, setProjectMenu] = useState<{ x: number; y: number; path: string } | null>(null)
 
   const [tab, setTab] = useState<MainTab>('REGISTRY')
   const [detailTab, setDetailTab] = useState<DetailTab>('INFO')
@@ -71,10 +90,12 @@ export const App: React.FC = () => {
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [alertQueue, setAlertQueue] = useState<string[]>([])
+  const lastAlertsKeyRef = useRef<string>('')
+  const lastErrorAlertRef = useRef<{ key: string; at: number } | null>(null)
 
   const [installKind, setInstallKind] = useState<'runtime' | 'dev'>('runtime')
   const [installVersionOrTag, setInstallVersionOrTag] = useState('latest')
-  const [listContextOpen, setListContextOpen] = useState(true)
 
   const searchTimer = useRef<number | null>(null)
   const listBodyRef = useRef<HTMLDivElement | null>(null)
@@ -126,14 +147,88 @@ export const App: React.FC = () => {
   }
 
   useEffect(() => {
-    const last = localStorage.getItem(LS_PROJECT_DIR)
-    if (last) setProjectDir(last)
-    const ctxOpen = localStorage.getItem(LS_LIST_CONTEXT_OPEN)
-    if (ctxOpen === '0') setListContextOpen(false)
+    const open = localStorage.getItem(LS_PROJECT_PANEL_OPEN)
+    if (open === '0') setProjectPanelOpen(false)
+    const ctxOpen = localStorage.getItem(LS_PROJECT_CONTEXT_OPEN)
+    if (ctxOpen === '0') setProjectContextOpen(false)
     void refreshSettings()
-    void refreshProject(last ?? null)
-    void refreshNpmrc(last ?? null)
   }, [])
+
+  useEffect(() => {
+    const remember = settings?.rememberRecentProjects
+    if (typeof remember !== 'boolean') return
+
+    if (!remember) {
+      setRecentProjects([])
+      localStorage.setItem(LS_REMEMBER_PROJECTS, '0')
+      void refreshProject(projectDir)
+      return
+    }
+
+    localStorage.setItem(LS_REMEMBER_PROJECTS, '1')
+    const last = localStorage.getItem(LS_PROJECT_DIR)
+    const raw = localStorage.getItem(LS_RECENT_PROJECTS)
+    const base: string[] = (() => {
+      if (!raw) return []
+      try {
+        const parsed = JSON.parse(raw) as unknown
+        return Array.isArray(parsed) ? parsed.filter((v) => typeof v === 'string') : []
+      } catch {
+        return []
+      }
+    })()
+
+    const list = last && !base.includes(last) ? [...base, last] : base
+    setRecentProjects(list.slice(-20))
+    void setActiveProject(last ?? null)
+  }, [settings?.rememberRecentProjects])
+
+  const saveRecents = (updater: (prev: string[]) => string[]) => {
+    setRecentProjects((prev) => {
+      const next = updater(prev)
+      localStorage.setItem(LS_RECENT_PROJECTS, JSON.stringify(next))
+      return next
+    })
+  }
+
+  const removeRecentProject = (dir: string) => {
+    saveRecents((prev) => prev.filter((p) => p !== dir))
+    if (localStorage.getItem(LS_PROJECT_DIR) === dir) localStorage.removeItem(LS_PROJECT_DIR)
+  }
+
+  useEffect(() => {
+    if (!projectMenu) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setProjectMenu(null)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [projectMenu])
+
+  const setActiveProject = async (dir: string | null) => {
+    const remember = settings?.rememberRecentProjects ?? localStorage.getItem(LS_REMEMBER_PROJECTS) !== '0'
+    setRemoteItems([])
+    setRemoteSearched(false)
+    setRemoteLimit(LIST_PAGE_SIZE)
+    setSelectedName(null)
+    setProjectState(null)
+    setNpmrc(null)
+
+    if (dir) {
+      if (remember) localStorage.setItem(LS_PROJECT_DIR, dir)
+      setProjectDir(dir)
+      if (remember) {
+        saveRecents((prev) => {
+          if (prev.includes(dir)) return prev
+          return [...prev, dir].slice(-20)
+        })
+      }
+    } else {
+      setProjectDir(null)
+    }
+    await refreshProject(dir)
+    await refreshNpmrc(dir)
+  }
 
   useEffect(() => {
     setPref(settings?.uiLanguage ?? 'system')
@@ -145,10 +240,7 @@ export const App: React.FC = () => {
     const res = await window.upm.selectProjectDir()
     if (!res.ok) return setError(res.error)
     if (!res.data) return
-    localStorage.setItem(LS_PROJECT_DIR, res.data)
-    setProjectDir(res.data)
-    await refreshProject(res.data)
-    await refreshNpmrc(res.data)
+    await setActiveProject(res.data)
   }
 
   const doSearch = async (dir: string, q: string, limit: number) => {
@@ -156,7 +248,23 @@ export const App: React.FC = () => {
     setRemoteLoading(true)
     try {
       const res = await window.upm.searchRegistry(dir, q, limit)
-      if (!res.ok) return setError(res.error)
+      if (!res.ok) {
+        setError(res.error)
+        const msg = res.error ?? ''
+        const shouldAlert =
+          /getaddrinfo\s+ENOTFOUND/i.test(msg) ||
+          /\bENOTFOUND\b/i.test(msg) ||
+          (/request to .* failed/i.test(msg) && /getaddrinfo/i.test(msg))
+        if (shouldAlert) {
+          const now = Date.now()
+          const prev = lastErrorAlertRef.current
+          if (!prev || prev.key !== msg || now - prev.at > 10_000) {
+            lastErrorAlertRef.current = { key: msg, at: now }
+            setAlertQueue((q) => [...q, msg])
+          }
+        }
+        return
+      }
       setRemoteItems(res.data)
       setRemoteSearched(true)
     } finally {
@@ -182,6 +290,12 @@ export const App: React.FC = () => {
     if (tab === 'REGISTRY') setRemoteLimit(LIST_PAGE_SIZE)
     listBodyRef.current?.scrollTo({ top: 0 })
   }, [tab, projectDir, query, settings?.ueOnlyFilter])
+
+  useEffect(() => {
+    if (tab !== 'REGISTRY') return
+    setRemoteItems([])
+    setRemoteSearched(false)
+  }, [projectDir, projectState?.npmrc?.values?.registry, tab])
 
   const listItems = useMemo(() => {
     const ueOnly = settings?.ueOnlyFilter ?? false
@@ -309,8 +423,24 @@ export const App: React.FC = () => {
     if (settings?.showLogDock === false) setLogVisible(false)
   }, [settings?.showLogDock])
 
+  useEffect(() => {
+    const alerts = projectState?.alerts ?? []
+    const key = alerts.join('\n')
+    if (!alerts.length || key === lastAlertsKeyRef.current) return
+    lastAlertsKeyRef.current = key
+    setAlertQueue(alerts)
+  }, [projectState?.alerts])
+
+  const currentAlert = alertQueue[0] ?? null
+
+  const filteredProjects = useMemo(() => {
+    const q = projectSearch.trim().toLowerCase()
+    if (!q) return recentProjects
+    return recentProjects.filter((p) => p.toLowerCase().includes(q))
+  }, [recentProjects, projectSearch])
+
   return (
-    <div className="app ue">
+    <div className={`app ue ${projectPanelOpen ? 'with-projects' : ''}`}>
       <header className="ue-topbar">
         <div className="ue-toolbar">
           {isMac ? <div className="ue-traffic-spacer" aria-hidden="true" /> : null}
@@ -318,6 +448,20 @@ export const App: React.FC = () => {
 
           <div className="ue-spacer" />
 
+          <button
+            className="ue-icon-btn"
+            onClick={() => {
+              setProjectPanelOpen((v) => {
+                const next = !v
+                localStorage.setItem(LS_PROJECT_PANEL_OPEN, next ? '1' : '0')
+                return next
+              })
+            }}
+            aria-label={projectPanelOpen ? t('projects.toggle.hide') : t('projects.toggle.show')}
+            title={projectPanelOpen ? t('projects.toggle.hide') : t('projects.toggle.show')}
+          >
+            <Icon><IconSidebar /></Icon>
+          </button>
           <button className="btn" onClick={() => setShowSettings(true)} disabled={!hasElectronBridge()}>
             <Icon><IconGear /></Icon>
             {t('actions.settings')}
@@ -348,6 +492,135 @@ export const App: React.FC = () => {
         </div>
 
         <main className="ue-main">
+          {projectPanelOpen ? (
+            <aside className="ue-projects" aria-label="Projects">
+              <div className="ue-projects-header">
+                <div className="ue-projects-title">{t('projects.title')}</div>
+              </div>
+
+              <div className="ue-projects-body">
+                <div className="ue-search-wrap">
+                  <div className="ue-search-icon">
+                    <Icon><IconSearch /></Icon>
+                  </div>
+                  <input
+                    className="ue-search ue-search-sidebar"
+                    value={projectSearch}
+                    placeholder={t('projects.search.placeholder')}
+                    onChange={(e) => setProjectSearch(e.target.value)}
+                  />
+                </div>
+
+                <div className="ue-projects-context-wrap">
+                  <div className="ue-projects-context-header">
+                    <div className="ue-projects-context-title">{t('projects.context.title')}</div>
+                    <button
+                      className="ue-icon-btn"
+                      onClick={() => {
+                        setProjectContextOpen((v) => {
+                          const next = !v
+                          localStorage.setItem(LS_PROJECT_CONTEXT_OPEN, next ? '1' : '0')
+                          return next
+                        })
+                      }}
+                      aria-label={projectContextOpen ? t('projects.context.hide') : t('projects.context.show')}
+                      title={projectContextOpen ? t('projects.context.hide') : t('projects.context.show')}
+                    >
+                      <Icon><IconChevron direction={projectContextOpen ? 'up' : 'down'} /></Icon>
+                    </button>
+                  </div>
+
+                  {projectContextOpen ? (
+                    <div className="ue-list-context ue-projects-context">
+                      <div className="ue-list-context-row">
+                        <div className="ue-list-context-k">
+                          <Icon><IconFolder /></Icon>
+                          <span className="k">{t('meta.project')}</span>
+                        </div>
+                        <div className="ue-list-context-v mono">{projectDir ?? t('meta.unselected')}</div>
+                      </div>
+                      <div className="ue-list-context-row">
+                        <div className="ue-list-context-k">
+                          <Icon><IconGlobe /></Icon>
+                          <span className="k">{t('meta.registry')}</span>
+                        </div>
+                        <div className="ue-list-context-v mono">
+                          {projectState?.npmrc?.values?.registry ?? t('meta.projectNpmrc')}
+                        </div>
+                      </div>
+                      <div className="ue-list-context-row">
+                        <div className="ue-list-context-k">
+                          <Icon><IconPlugin /></Icon>
+                          <span className="k">{t('meta.pluginsRoot')}</span>
+                        </div>
+                        <div className="ue-list-context-v mono">{projectState?.pluginsRootDir ?? t('meta.unknown')}</div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="ue-projects-actions">
+                  <button className="btn ue-btn-sm" onClick={selectProject} disabled={busy !== null}>
+                    <Icon><IconFolder /></Icon>
+                    {t('actions.selectProject')}
+                  </button>
+                  <button
+                    className="ue-icon-btn"
+                    onClick={() =>
+                      void act('project:refresh', async () => {
+                        await refreshProject(projectDir)
+                        await refreshNpmrc(projectDir)
+                      })
+                    }
+                    disabled={busy !== null}
+                    aria-label={t('actions.refresh')}
+                    title={t('actions.refresh')}
+                  >
+                    <Icon><IconRefresh /></Icon>
+                  </button>
+                </div>
+
+                <div className="ue-projects-list">
+                  {filteredProjects.length ? (
+                    filteredProjects.map((p) => (
+                      <button
+                        key={p}
+                        className={`ue-project-item ${p === projectDir ? 'active' : ''}`}
+                        onClick={() => void act('project:switch', async () => setActiveProject(p))}
+                        onContextMenu={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          if (settings?.rememberRecentProjects === false) return
+                          const w = window.innerWidth
+                          const h = window.innerHeight
+                          const mw = 180
+                          const mh = 60
+                          const x = Math.min(e.clientX, Math.max(0, w - mw - 8))
+                          const y = Math.min(e.clientY, Math.max(0, h - mh - 8))
+                          setProjectMenu({ x, y, path: p })
+                        }}
+                        title={p}
+                      >
+                        <div className="ue-project-item-top">
+                          <Icon><IconFolder /></Icon>
+                          <div className="ue-project-item-name mono">{p.split(/[\\/]/).filter(Boolean).pop() ?? p}</div>
+                        </div>
+                        <div className="ue-project-item-path mono">{p}</div>
+                      </button>
+                    ))
+                  ) : (
+                    <EmptyState
+                      title={settings?.rememberRecentProjects === false ? t('projects.disabled') : t('projects.empty')}
+                      description={
+                        settings?.rememberRecentProjects === false ? t('projects.disabled.desc') : t('projects.empty.desc')
+                      }
+                    />
+                  )}
+                </div>
+              </div>
+            </aside>
+          ) : null}
+
           <aside className="ue-list">
             <div className="ue-list-header">
               <div className="ue-search-wrap">
@@ -375,64 +648,6 @@ export const App: React.FC = () => {
                   </Tab>
                 </div>
               </div>
-
-              <div className="ue-list-actions">
-                <button className="btn" onClick={selectProject} disabled={busy !== null}>
-                  <Icon><IconFolder /></Icon>
-                  {t('actions.selectProject')}
-                </button>
-                <button
-                  className="ue-icon-btn"
-                  onClick={() => {
-                    setListContextOpen((v) => {
-                      const next = !v
-                      localStorage.setItem(LS_LIST_CONTEXT_OPEN, next ? '1' : '0')
-                      return next
-                    })
-                  }}
-                  aria-label={listContextOpen ? t('list.context.hide') : t('list.context.show')}
-                  title={listContextOpen ? t('list.context.hide') : t('list.context.show')}
-                >
-                  <Icon><IconChevron direction={listContextOpen ? 'up' : 'down'} /></Icon>
-                </button>
-                <button
-                  className="ue-icon-btn"
-                  onClick={() => void refreshProject(projectDir)}
-                  disabled={busy !== null}
-                  aria-label={t('actions.refresh')}
-                  title={t('actions.refresh')}
-                >
-                  <Icon><IconRefresh /></Icon>
-                </button>
-              </div>
-
-              {listContextOpen ? (
-                <div className="ue-list-context">
-                  <div className="ue-list-context-row">
-                    <div className="ue-list-context-k">
-                      <Icon><IconFolder /></Icon>
-                      <span className="k">{t('meta.project')}</span>
-                    </div>
-                    <div className="ue-list-context-v mono">{projectDir ?? t('meta.unselected')}</div>
-                  </div>
-                  <div className="ue-list-context-row">
-                    <div className="ue-list-context-k">
-                      <Icon><IconGlobe /></Icon>
-                      <span className="k">{t('meta.registry')}</span>
-                    </div>
-                    <div className="ue-list-context-v mono">
-                      {projectState?.npmrc?.values?.registry ?? t('meta.projectNpmrc')}
-                    </div>
-                  </div>
-                  <div className="ue-list-context-row">
-                    <div className="ue-list-context-k">
-                      <Icon><IconPlugin /></Icon>
-                      <span className="k">{t('meta.pluginsRoot')}</span>
-                    </div>
-                    <div className="ue-list-context-v mono">{projectState?.pluginsRootDir ?? t('meta.unknown')}</div>
-                  </div>
-                </div>
-              ) : null}
 
               <div className="muted">
                 {projectState
@@ -535,6 +750,11 @@ export const App: React.FC = () => {
           settings={settings}
           npmrc={npmrc}
           onClose={() => setShowSettings(false)}
+          onClearProjectHistory={() => {
+            localStorage.removeItem(LS_RECENT_PROJECTS)
+            localStorage.removeItem(LS_PROJECT_DIR)
+            setRecentProjects([])
+          }}
           onReload={async () => {
             await refreshSettings()
             await refreshProject(projectDir)
@@ -559,6 +779,54 @@ export const App: React.FC = () => {
             setNpmrc(cfg)
           }}
         />
+      ) : null}
+
+      {currentAlert ? (
+        <div className="alert-backdrop" role="dialog" aria-modal="true">
+          <div className="alert">
+            <div className="alert-title">{t('alert.title')}</div>
+            <div className="alert-body" style={{ whiteSpace: 'pre-wrap' }}>
+              {currentAlert}
+            </div>
+            <div className="alert-actions">
+              <button
+                className="btn primary"
+                onClick={() => setAlertQueue((q) => q.slice(1))}
+              >
+                {t('alert.ok')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {projectMenu ? (
+        <div
+          className="ue-menu-overlay"
+          onMouseDown={() => setProjectMenu(null)}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            setProjectMenu(null)
+          }}
+        >
+          <div
+            className="ue-menu"
+            style={{ left: projectMenu.x, top: projectMenu.y }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <button
+              className="ue-menu-item danger"
+              onClick={() => {
+                const ok = confirm(t('projects.remove.confirm', { path: projectMenu.path }))
+                if (!ok) return
+                removeRecentProject(projectMenu.path)
+                setProjectMenu(null)
+              }}
+            >
+              {t('projects.remove')}
+            </button>
+          </div>
+        </div>
       ) : null}
     </div>
   )
@@ -860,7 +1128,8 @@ const SettingsModal: React.FC<{
   onSaveSettings: (patch: Partial<AppSettings>) => Promise<void>
   onSaveNpmrc: (cfg: NpmrcConfig) => Promise<void>
   onReload: () => Promise<void>
-}> = ({ projectDir, settings, npmrc, onClose, onSaveSettings, onSaveNpmrc, onReload }) => {
+  onClearProjectHistory: () => void
+}> = ({ projectDir, settings, npmrc, onClose, onSaveSettings, onSaveNpmrc, onReload, onClearProjectHistory }) => {
   const { t, setPref } = useI18n()
   const [draft, setDraft] = useState<AppSettings>(
     settings ?? {
@@ -870,6 +1139,7 @@ const SettingsModal: React.FC<{
       linkMode: 'auto',
       theme: 'system',
       uiLanguage: 'system',
+      rememberRecentProjects: true,
       ueOnlyFilter: false,
       showLogDock: true
     }
@@ -1016,6 +1286,32 @@ const SettingsModal: React.FC<{
                       <option value="de">{t('settings.appearance.language.de')}</option>
                       <option value="ru">{t('settings.appearance.language.ru')}</option>
                     </select>
+                  </div>
+                </div>
+
+                <div className="modal-row">
+                  <div className="k">{t('settings.appearance.projects')}</div>
+                  <div className="v">
+                    <label className="chk">
+                      <input
+                        type="checkbox"
+                        checked={draft.rememberRecentProjects}
+                        onChange={(e) => setDraft((d) => ({ ...d, rememberRecentProjects: e.target.checked }))}
+                      />{' '}
+                      {t('settings.appearance.projects.remember')}
+                    </label>
+                    <div className="modal-actions" style={{ marginTop: 8 }}>
+                      <button
+                        className="btn danger"
+                        onClick={() => {
+                          const ok = confirm(t('settings.appearance.projects.clear.confirm'))
+                          if (!ok) return
+                          onClearProjectHistory()
+                        }}
+                      >
+                        {t('settings.appearance.projects.clear')}
+                      </button>
+                    </div>
                   </div>
                 </div>
 

@@ -112,3 +112,21 @@ export const IconPlugin: React.FC = () => (
   </svg>
 )
 
+export const IconSidebar: React.FC = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+    <path
+      d="M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinejoin="round"
+    />
+    <path d="M9 5v14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+)
+
+export const IconX: React.FC = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+    <path d="M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    <path d="M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+)

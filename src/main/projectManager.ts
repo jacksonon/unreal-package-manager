@@ -57,10 +57,16 @@ type PackageJson = {
 const readProjectPackageJson = async (
   projectDir: string,
   tr: (key: MessageKey, vars?: Record<string, string | number>) => string
-): Promise<{ items: PackageListItem[]; warnings: string[] }> => {
+): Promise<{ items: PackageListItem[]; warnings: string[]; alerts: string[] }> => {
   const warnings: string[] = []
+  const alerts: string[] = []
   const p = path.join(projectDir, 'package.json')
-  if (!(await exists(p))) return { items: [], warnings: [tr('warn.noPackageJson')] }
+  if (!(await exists(p))) {
+    const msg = tr('warn.noPackageJson')
+    warnings.push(msg)
+    alerts.push(msg)
+    return { items: [], warnings, alerts }
+  }
   const root = await readJson<PackageJson>(p)
 
   const add = (deps: Record<string, string> | undefined, kind: DependencyKind, out: PackageListItem[]) => {
@@ -79,7 +85,7 @@ const readProjectPackageJson = async (
   add(root.dependencies, 'runtime', items)
   add(root.devDependencies, 'dev', items)
   items.sort((a, b) => a.name.localeCompare(b.name))
-  return { items, warnings }
+  return { items, warnings, alerts }
 }
 
 const parseInstalledFromNpmLs = (stdout: string) => {
@@ -132,6 +138,7 @@ export const getProjectState = async (
   tr: (key: MessageKey, vars?: Record<string, string | number>) => string
 ): Promise<ProjectState> => {
   const warnings: string[] = []
+  const alerts: string[] = []
   const npmPath = getEffectiveNpmPath(settings)
   if (!projectDir) {
     return {
@@ -142,7 +149,8 @@ export const getProjectState = async (
       pluginsRootDir: null,
       npmrc: null,
       packages: [],
-      warnings: [tr('warn.selectProjectDir')]
+      warnings: [tr('warn.selectProjectDir')],
+      alerts: []
     }
   }
 
@@ -155,7 +163,8 @@ export const getProjectState = async (
       pluginsRootDir: settings.pluginsRootDirOverride ?? path.join(projectDir, 'Plugins'),
       npmrc: null,
       packages: [],
-      warnings: [tr('warn.projectDirMissing', { dir: projectDir })]
+      warnings: [tr('warn.projectDirMissing', { dir: projectDir })],
+      alerts: []
     }
   }
 
@@ -167,6 +176,7 @@ export const getProjectState = async (
 
   const pkg = await readProjectPackageJson(projectDir, tr)
   warnings.push(...pkg.warnings)
+  alerts.push(...pkg.alerts)
 
   let lsRes: NpmCommandResult | null = null
   let outdatedRes: NpmCommandResult | null = null
@@ -239,6 +249,7 @@ export const getProjectState = async (
     npmrc,
     packages,
     warnings,
+    alerts,
     lastLog: lsRes ?? undefined
   }
 }

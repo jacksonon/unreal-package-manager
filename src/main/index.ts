@@ -96,6 +96,7 @@ app.whenReady().then(async () => {
           linkMode: patch.linkMode ?? settings.linkMode,
           theme: patch.theme ?? settings.theme,
           uiLanguage: patch.uiLanguage ?? settings.uiLanguage,
+          rememberRecentProjects: patch.rememberRecentProjects ?? settings.rememberRecentProjects,
           ueOnlyFilter: patch.ueOnlyFilter ?? settings.ueOnlyFilter,
           showLogDock: patch.showLogDock ?? settings.showLogDock
         }
