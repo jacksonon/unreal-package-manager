@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
+import fs from 'node:fs'
 import path from 'node:path'
 import { loadSettings, saveSettings } from './settings'
 import { loadProjectNpmrc, saveProjectNpmrc } from './npmrc'
@@ -21,6 +22,12 @@ import type {
   ProjectState
 } from '../shared/types'
 import { createTranslator, resolveLanguage } from '../shared/i18n'
+
+const APP_NAME = 'Unreal Package Manager'
+const APP_ID = 'com.unreal.package-manager'
+
+app.setName(APP_NAME)
+if (process.platform === 'win32') app.setAppUserModelId(APP_ID)
 
 const createWindow = async () => {
   const win = new BrowserWindow({
@@ -50,6 +57,11 @@ const createWindow = async () => {
 }
 
 app.whenReady().then(async () => {
+  if (process.platform === 'darwin') {
+    const dockIcon = path.join(process.cwd(), 'build', 'icon.png')
+    if (fs.existsSync(dockIcon)) await app.dock.setIcon(dockIcon)
+  }
+
   let settings: AppSettings = await loadSettings()
 
   const tMain = () => {

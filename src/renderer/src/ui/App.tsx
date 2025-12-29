@@ -517,7 +517,7 @@ export const App: React.FC = () => {
             </button>
           </div>
 
-          <div className="ue-title">{t('app.title')}</div>
+          <div aria-hidden="true" />
 
           <div className="ue-toolbar-right">
             <button className="btn" onClick={() => setShowSettings(true)} disabled={!hasElectronBridge()}>

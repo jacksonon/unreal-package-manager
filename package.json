@@ -7,6 +7,7 @@
   "main": "dist/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
+    "gen:icons": "node scripts/generateIcons.mjs",
     "build": "electron-vite build && electron-builder --publish=never"
   },
   "dependencies": {
@@ -30,25 +31,29 @@
     "appId": "com.unreal.package-manager",
     "productName": "Unreal Package Manager",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "dist/**/*",
       "package.json"
     ],
     "mac": {
+      "icon": "build/icon.icns",
       "target": [
         "dmg",
         "zip"
       ]
     },
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         "nsis",
         "zip"
       ]
     },
     "linux": {
+      "icon": "build/icon.png",
       "target": [
         "AppImage",
         "tar.gz"
