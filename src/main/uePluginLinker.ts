@@ -5,6 +5,15 @@ import { spawn } from 'node:child_process'
 
 type LinkRecord = { pluginName: string; packageName: string; targetDir: string }
 
+const UPLUGIN_EXT = '.uplugin'
+
+const pluginNameFromUpluginFilename = (filename: string) => {
+  const lower = filename.toLowerCase()
+  if (!lower.endsWith(UPLUGIN_EXT)) return null
+  // Use the original filename's length to handle case variants like ".UPLUGIN".
+  return filename.slice(0, filename.length - UPLUGIN_EXT.length)
+}
+
 const manifestPathForDestination = (destinationDir: string) =>
   path.join(destinationDir, '.uenpmmanager_links.json')
 
@@ -54,7 +63,8 @@ const findPluginsInNodeModules = async (workDir: string): Promise<LinkRecord[]> 
 
   const isDirectory = async (p: string) => {
     try {
-      const st = await fs.lstat(p)
+      // Follow symlinks/junctions (common with pnpm / npm link).
+      const st = await fs.stat(p)
       return st.isDirectory()
     } catch {
       return false
@@ -74,8 +84,7 @@ const findPluginsInNodeModules = async (workDir: string): Promise<LinkRecord[]> 
       }
       for (const ent of entries) {
         if (!ent.isFile()) continue
-        if (!ent.name.toLowerCase().endsWith('.uplugin')) continue
-        const pluginName = path.basename(ent.name, '.uplugin')
+        const pluginName = pluginNameFromUpluginFilename(ent.name)
         if (!pluginName || byName.has(pluginName)) continue
         byName.add(pluginName)
         found.push({ pluginName, targetDir: dir })
@@ -125,8 +134,7 @@ const findPluginsInNodeModules = async (workDir: string): Promise<LinkRecord[]> 
           continue
         }
         if (!ent.isFile()) continue
-        if (!ent.name.toLowerCase().endsWith('.uplugin')) continue
-        const pluginName = path.basename(ent.name, '.uplugin')
+        const pluginName = pluginNameFromUpluginFilename(ent.name)
         if (!pluginName || byName.has(pluginName)) continue
         byName.add(pluginName)
         found.push({ pluginName, targetDir: next.dir })
@@ -146,7 +154,7 @@ const findPluginsInNodeModules = async (workDir: string): Promise<LinkRecord[]> 
   }
 
   for (const ent of top) {
-    if (!ent.isDirectory()) continue
+    if (!ent.isDirectory() && !ent.isSymbolicLink()) continue
     if (ent.name.startsWith('.')) continue
     if (ent.name.startsWith('@')) {
       const scopeDir = path.join(nodeModulesDir, ent.name)
@@ -157,7 +165,7 @@ const findPluginsInNodeModules = async (workDir: string): Promise<LinkRecord[]> 
         continue
       }
       for (const pkgEnt of scoped) {
-        if (!pkgEnt.isDirectory()) continue
+        if (!pkgEnt.isDirectory() && !pkgEnt.isSymbolicLink()) continue
         if (pkgEnt.name.startsWith('.')) continue
         const pkgName = `${ent.name}/${pkgEnt.name}`
         await scanPackageDir(pkgName, path.join(scopeDir, pkgEnt.name))
@@ -186,16 +194,19 @@ const createLinkToDirectory = async (linkPath: string, targetDir: string, mode: 
   await fs.mkdir(path.dirname(linkPath), { recursive: true })
 
   if (mode === 'copy') {
-    const shouldCopy = (srcPath: string) => {
-      const rel = path.relative(targetDir, srcPath)
-      if (!rel || rel === '.' || rel.startsWith('..')) return true
+    // Filter based on destination path so it stays correct even when the source
+    // is a symlink/junction and fs.cp dereferences to a different real path.
+    const shouldCopy = (_srcPath: string, destPath: string) => {
+      const rel = path.relative(linkPath, destPath)
+      if (!rel || rel === '.') return true
       const parts = rel.split(path.sep)
       return !parts.includes('node_modules') && !parts.includes('.git')
     }
     await fs.cp(targetDir, linkPath, {
       recursive: true,
       force: true,
-      filter: (src) => shouldCopy(src)
+      dereference: true,
+      filter: (src, dest) => shouldCopy(src, dest)
     })
     return
   }
