@@ -1,7 +1,7 @@
 {
   "name": "unreal-package-manager-desktop",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Cross-platform desktop app to manage Unreal project plugins (install/uninstall/upgrade/list).",
   "type": "module",
   "main": "dist/main/index.js",
