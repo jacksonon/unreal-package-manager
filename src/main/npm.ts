@@ -1,5 +1,6 @@
-import { spawn } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import os from 'node:os'
+import path from 'node:path'
 import type { AppSettings, NpmrcConfig } from '../shared/types'
 
 export type NpmCommandResult = {
@@ -10,6 +11,77 @@ export type NpmCommandResult = {
 }
 
 const uniq = (arr: string[]) => [...new Set(arr)]
+
+const splitPath = (value: string) => value.split(path.delimiter).filter(Boolean)
+
+const mergePathParts = (...lists: Array<string[] | null | undefined>) => {
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const list of lists) {
+    if (!list) continue
+    for (const item of list) {
+      const trimmed = item.trim()
+      if (!trimmed) continue
+      if (seen.has(trimmed)) continue
+      seen.add(trimmed)
+      out.push(trimmed)
+    }
+  }
+  return out
+}
+
+let cachedShellPath: Promise<string | null> | null = null
+
+const readPathFromLoginShell = async (): Promise<string | null> => {
+  if (os.platform() === 'win32') return null
+
+  if (!cachedShellPath) {
+    cachedShellPath = new Promise((resolve) => {
+      const shell =
+        process.env.SHELL?.trim() || (os.platform() === 'darwin' ? '/bin/zsh' : '/bin/bash')
+      const shellArgs = os.platform() === 'darwin' ? ['-lic'] : ['-lc']
+      const script = 'printf "__UPM_PATH__%s__UPM_END__" "$PATH"'
+
+      execFile(
+        shell,
+        [...shellArgs, script],
+        { timeout: 2500, env: process.env },
+        (err, stdout) => {
+          if (err) return resolve(null)
+          const matches = Array.from(String(stdout).matchAll(/__UPM_PATH__(.*?)__UPM_END__/gs))
+          const last = matches.length ? matches[matches.length - 1] : null
+          const value = last?.[1]?.trim() || ''
+          resolve(value || null)
+        }
+      )
+    })
+  }
+
+  return cachedShellPath
+}
+
+const buildNpmSpawnEnv = async (): Promise<NodeJS.ProcessEnv> => {
+  const basePath = process.env.PATH || ''
+  const common: string[] =
+    os.platform() === 'darwin'
+      ? [
+          '/opt/homebrew/bin',
+          '/opt/homebrew/sbin',
+          '/usr/local/bin',
+          '/usr/local/sbin',
+          '/usr/bin',
+          '/bin',
+          '/usr/sbin',
+          '/sbin'
+        ]
+      : os.platform() === 'linux'
+        ? ['/usr/local/bin', '/usr/local/sbin', '/usr/bin', '/bin', '/usr/sbin', '/sbin']
+        : []
+
+  const shellPath = await readPathFromLoginShell()
+  const merged = mergePathParts(splitPath(shellPath || ''), splitPath(basePath), common)
+  return { ...process.env, PATH: merged.join(path.delimiter) }
+}
 
 const uniqueScopedRegistry = (cfg: NpmrcConfig): string | null => {
   const values = Object.values(cfg.scopedRegistries ?? {}).filter(Boolean)
@@ -63,21 +135,41 @@ export const runNpm = async (
 
   const cmd = `${npmPath} ${cmdArgs.join(' ')}`
   return new Promise((resolve) => {
-    const child = spawn(npmPath, cmdArgs, {
-      cwd: opts.cwd,
-      env: process.env,
-      shell: false
-    })
-    let stdout = ''
-    let stderr = ''
-    child.stdout.on('data', (d) => (stdout += String(d)))
-    child.stderr.on('data', (d) => (stderr += String(d)))
-    child.on('close', (code) => {
-      resolve({ cmd, exitCode: typeof code === 'number' ? code : -1, stdout, stderr })
-    })
-    child.on('error', (err) => {
-      resolve({ cmd, exitCode: -1, stdout, stderr: stderr + String(err) })
-    })
+    void (async () => {
+      const env = await buildNpmSpawnEnv()
+      let child
+      try {
+        child = spawn(npmPath, cmdArgs, {
+          cwd: opts.cwd,
+          env,
+          shell: false
+        })
+      } catch (err) {
+        resolve({ cmd, exitCode: -1, stdout: '', stderr: String(err) })
+        return
+      }
+      let stdout = ''
+      let stderr = ''
+      child.stdout.on('data', (d) => (stdout += String(d)))
+      child.stderr.on('data', (d) => (stderr += String(d)))
+      child.on('close', (code) => {
+        resolve({ cmd, exitCode: typeof code === 'number' ? code : -1, stdout, stderr })
+      })
+      child.on('error', (err) => {
+        const anyErr = err as Error & { code?: string }
+        if (anyErr.code === 'ENOENT') {
+          const configured = opts.settings.npmExecutablePath?.trim()
+          const hint = configured
+            ? `Configured npm executable not found: ${npmPath}`
+            : os.platform() === 'darwin'
+              ? 'npm not found. If you installed Node via Homebrew/NVM, set Settings → npm executable path (e.g. /opt/homebrew/bin/npm), or launch the app from Terminal so PATH is available.'
+              : 'npm not found. Install Node.js (npm) or set Settings → npm executable path.'
+          resolve({ cmd, exitCode: -1, stdout, stderr: (stderr + hint + '\n' + String(err)).trim() })
+          return
+        }
+        resolve({ cmd, exitCode: -1, stdout, stderr: (stderr + String(err)).trim() })
+      })
+    })()
   })
 }
 
