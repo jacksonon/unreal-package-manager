@@ -143,7 +143,7 @@ git push origin v0.1.0
 
 解决方法：
 
-- 在应用右上角 `设置` 里，把 `npm executable path` 显式设置为 `C:\\Program Files\\nodejs\\npm.cmd`（或你机器上的 `npm.cmd`）
+- 在应用右上角 `设置` 里，把 `npm executable path` 显式设置为 `"C:\Program Files\nodejs\npm.cmd"`（或你机器上的 `npm.cmd`）
 - 在命令行运行 `where npm`，确认输出里包含 `npm.cmd`，然后重启应用
 
 ### `Error: Electron uninstall`

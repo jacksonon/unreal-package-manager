@@ -67,7 +67,7 @@ If you configured a public registry but see no results under `My Registry`:
 
 This usually means the app is trying to run PowerShell’s `npm.ps1` script, which Node/Electron cannot spawn directly.
 
-- In `Settings`, set `npm executable path` explicitly to `C:\\Program Files\\nodejs\\npm.cmd` (or wherever your `npm.cmd` is)
+- In `Settings`, set `npm executable path` explicitly to `"C:\Program Files\nodejs\npm.cmd"` (or wherever your `npm.cmd` is)
 - Run `where npm` and ensure `npm.cmd` is listed, then restart the app
 
 ## Creating a compliant npm package (UE plugin)
