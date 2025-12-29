@@ -39,7 +39,9 @@ const findUproject = async (projectDir: string): Promise<string | null> => {
   try {
     const entries = await fs.readdir(projectDir, { withFileTypes: true })
     for (const e of entries) {
-      if (e.isFile() && e.name.toLowerCase().endsWith('.uproject')) return path.join(projectDir, e.name)
+      if (!e.isFile()) continue
+      const name = e.name.toLowerCase()
+      if (name.endsWith('.uproject') || name.endsWith('.uproj')) return path.join(projectDir, e.name)
     }
   } catch {
     // ignore

@@ -52,16 +52,94 @@ const findPluginsInNodeModules = async (workDir: string): Promise<LinkRecord[]> 
   const out: LinkRecord[] = []
   const top = await fs.readdir(nodeModulesDir, { withFileTypes: true })
 
-  const scanPackageDir = async (packageName: string, packageDir: string) => {
+  const isDirectory = async (p: string) => {
     try {
-      const entries = await fs.readdir(packageDir, { withFileTypes: true })
+      const st = await fs.lstat(p)
+      return st.isDirectory()
+    } catch {
+      return false
+    }
+  }
+
+  const findPluginsInPackageDir = async (packageDir: string) => {
+    const found: Array<{ pluginName: string; targetDir: string }> = []
+    const byName = new Set<string>()
+
+    const addFromDir = async (dir: string) => {
+      let entries: Array<import('node:fs').Dirent>
+      try {
+        entries = (await fs.readdir(dir, { withFileTypes: true })) as any
+      } catch {
+        return
+      }
       for (const ent of entries) {
         if (!ent.isFile()) continue
         if (!ent.name.toLowerCase().endsWith('.uplugin')) continue
         const pluginName = path.basename(ent.name, '.uplugin')
-        if (!pluginName) continue
-        out.push({ pluginName, packageName, targetDir: packageDir })
+        if (!pluginName || byName.has(pluginName)) continue
+        byName.add(pluginName)
+        found.push({ pluginName, targetDir: dir })
       }
+    }
+
+    // common: package root contains <Plugin>.uplugin
+    await addFromDir(packageDir)
+
+    // common: package contains Plugins/<Plugin>/<Plugin>.uplugin
+    const pluginsDir = path.join(packageDir, 'Plugins')
+    if (await isDirectory(pluginsDir)) {
+      await addFromDir(pluginsDir)
+      let entries: Array<import('node:fs').Dirent>
+      try {
+        entries = (await fs.readdir(pluginsDir, { withFileTypes: true })) as any
+      } catch {
+        entries = []
+      }
+      for (const ent of entries) {
+        if (!ent.isDirectory()) continue
+        if (ent.name.startsWith('.')) continue
+        await addFromDir(path.join(pluginsDir, ent.name))
+      }
+    }
+
+    if (found.length) return found
+
+    // fallback: limited recursive scan for nested .uplugin
+    const maxDepth = 6
+    const stack: Array<{ dir: string; depth: number }> = [{ dir: packageDir, depth: 0 }]
+    while (stack.length) {
+      const next = stack.pop()
+      if (!next) break
+      if (next.depth > maxDepth) continue
+      let entries: Array<import('node:fs').Dirent>
+      try {
+        entries = (await fs.readdir(next.dir, { withFileTypes: true })) as any
+      } catch {
+        continue
+      }
+      for (const ent of entries) {
+        if (ent.isDirectory()) {
+          if (ent.name === 'node_modules' || ent.name === '.git') continue
+          if (ent.name.startsWith('.')) continue
+          stack.push({ dir: path.join(next.dir, ent.name), depth: next.depth + 1 })
+          continue
+        }
+        if (!ent.isFile()) continue
+        if (!ent.name.toLowerCase().endsWith('.uplugin')) continue
+        const pluginName = path.basename(ent.name, '.uplugin')
+        if (!pluginName || byName.has(pluginName)) continue
+        byName.add(pluginName)
+        found.push({ pluginName, targetDir: next.dir })
+      }
+    }
+
+    return found
+  }
+
+  const scanPackageDir = async (packageName: string, packageDir: string) => {
+    try {
+      const plugins = await findPluginsInPackageDir(packageDir)
+      for (const p of plugins) out.push({ pluginName: p.pluginName, packageName, targetDir: p.targetDir })
     } catch {
       // ignore
     }
@@ -108,10 +186,16 @@ const createLinkToDirectory = async (linkPath: string, targetDir: string, mode: 
   await fs.mkdir(path.dirname(linkPath), { recursive: true })
 
   if (mode === 'copy') {
+    const shouldCopy = (srcPath: string) => {
+      const rel = path.relative(targetDir, srcPath)
+      if (!rel || rel === '.' || rel.startsWith('..')) return true
+      const parts = rel.split(path.sep)
+      return !parts.includes('node_modules') && !parts.includes('.git')
+    }
     await fs.cp(targetDir, linkPath, {
       recursive: true,
       force: true,
-      filter: (p) => !p.includes(`${path.sep}node_modules${path.sep}`) && !p.includes(`${path.sep}.git${path.sep}`)
+      filter: (src) => shouldCopy(src)
     })
     return
   }

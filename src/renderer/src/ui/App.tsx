@@ -92,6 +92,7 @@ export const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false)
   const [alertQueue, setAlertQueue] = useState<string[]>([])
   const lastAlertsKeyRef = useRef<string>('')
+  const lastWarningsKeyRef = useRef<string>('')
   const lastErrorAlertRef = useRef<{ key: string; at: number } | null>(null)
 
   const [installKind, setInstallKind] = useState<'runtime' | 'dev'>('runtime')
@@ -99,7 +100,7 @@ export const App: React.FC = () => {
 
   const searchTimer = useRef<number | null>(null)
   const listBodyRef = useRef<HTMLDivElement | null>(null)
-  const autoSyncedProjectRef = useRef<string | null>(null)
+  const autoSyncedKeyRef = useRef<string>('')
 
   const refreshSettings = async () => {
     if (!hasElectronBridge()) return
@@ -250,19 +251,6 @@ export const App: React.FC = () => {
       const res = await window.upm.searchRegistry(dir, q, limit)
       if (!res.ok) {
         setError(res.error)
-        const msg = res.error ?? ''
-        const shouldAlert =
-          /getaddrinfo\s+ENOTFOUND/i.test(msg) ||
-          /\bENOTFOUND\b/i.test(msg) ||
-          (/request to .* failed/i.test(msg) && /getaddrinfo/i.test(msg))
-        if (shouldAlert) {
-          const now = Date.now()
-          const prev = lastErrorAlertRef.current
-          if (!prev || prev.key !== msg || now - prev.at > 10_000) {
-            lastErrorAlertRef.current = { key: msg, at: now }
-            setAlertQueue((q) => [...q, msg])
-          }
-        }
         return
       }
       setRemoteItems(res.data)
@@ -301,7 +289,22 @@ export const App: React.FC = () => {
     const ueOnly = settings?.ueOnlyFilter ?? false
     if (tab === 'REGISTRY') {
       const base = remoteItems
-      const filtered = ueOnly ? base.filter((p) => p.isUnrealPlugin) : base
+      const localByName = new Map((projectState?.packages ?? []).map((p) => [p.name, p] as const))
+      const merged = base.map((p) => {
+        const local = localByName.get(p.name)
+        if (!local) return p
+        return {
+          ...p,
+          requestedRange: local.requestedRange,
+          dependencyKind: local.dependencyKind,
+          installedVersion: local.installedVersion,
+          wantedVersion: local.wantedVersion,
+          latestVersion: p.latestVersion ?? local.latestVersion,
+          status: local.status,
+          isUnrealPlugin: !!(p.isUnrealPlugin || local.isUnrealPlugin)
+        }
+      })
+      const filtered = ueOnly ? merged.filter((p) => p.isUnrealPlugin) : merged
       if (!query.trim()) return filtered
       const q = query.trim().toLowerCase()
       return filtered.filter((p) => (p.name + ' ' + (p.description ?? '')).toLowerCase().includes(q))
@@ -397,6 +400,7 @@ export const App: React.FC = () => {
   }
 
   const syncLinksNow = async () => {
+    if (!hasElectronBridge()) return
     if (!projectDir) return
     if (!projectState?.isUnrealProject) return
     await act('links:sync', async () => {
@@ -431,10 +435,22 @@ export const App: React.FC = () => {
     if (!projectDir) return
     if (!projectState?.isUnrealProject) return
     if (!settings?.autoLinkUnrealPlugins) return
-    if (autoSyncedProjectRef.current === projectDir) return
-    autoSyncedProjectRef.current = projectDir
+    const key = [projectDir, settings.pluginsRootDirOverride ?? '', settings.linkMode].join('|')
+    if (autoSyncedKeyRef.current === key) return
+    autoSyncedKeyRef.current = key
     void syncLinksNow()
-  }, [projectDir, projectState?.isUnrealProject, settings?.autoLinkUnrealPlugins])
+  }, [
+    projectDir,
+    projectState?.isUnrealProject,
+    settings?.autoLinkUnrealPlugins,
+    settings?.pluginsRootDirOverride,
+    settings?.linkMode
+  ])
+
+  useEffect(() => {
+    if (settings?.autoLinkUnrealPlugins) return
+    autoSyncedKeyRef.current = ''
+  }, [settings?.autoLinkUnrealPlugins])
 
   useEffect(() => {
     if (settings?.showLogDock === false) setLogVisible(false)
@@ -445,8 +461,28 @@ export const App: React.FC = () => {
     const key = alerts.join('\n')
     if (!alerts.length || key === lastAlertsKeyRef.current) return
     lastAlertsKeyRef.current = key
-    setAlertQueue(alerts)
+    setAlertQueue((q) => [...q, ...alerts])
   }, [projectState?.alerts])
+
+  useEffect(() => {
+    const existingAlerts = new Set(projectState?.alerts ?? [])
+    const warnings = (projectState?.warnings ?? []).filter((w) => !existingAlerts.has(w))
+    const key = warnings.join('\n')
+    if (!warnings.length || key === lastWarningsKeyRef.current) return
+    lastWarningsKeyRef.current = key
+    setAlertQueue((q) => [...q, ...warnings])
+  }, [projectState?.alerts, projectState?.warnings])
+
+  useEffect(() => {
+    const msg = (error ?? '').trim()
+    if (!msg) return
+    const now = Date.now()
+    const prev = lastErrorAlertRef.current
+    if (!prev || prev.key !== msg || now - prev.at > 10_000) {
+      lastErrorAlertRef.current = { key: msg, at: now }
+      setAlertQueue((q) => [...q, msg])
+    }
+  }, [error])
 
   const currentAlert = alertQueue[0] ?? null
 
@@ -493,26 +529,6 @@ export const App: React.FC = () => {
       </header>
 
       <div className="ue-content">
-
-        <div className="ue-notices">
-          {projectState?.warnings?.length ? (
-            <section className="panel warn">
-              {projectState.warnings.map((w) => (
-                <div key={w} className="line">
-                  {w}
-                </div>
-              ))}
-            </section>
-          ) : null}
-
-          {error ? (
-            <section className="panel error">
-              <div className="line" style={{ whiteSpace: 'pre-wrap' }}>
-                {error}
-              </div>
-            </section>
-          ) : null}
-        </div>
 
         <main className="ue-main">
           {projectPanelOpen ? (
@@ -751,7 +767,6 @@ export const App: React.FC = () => {
                 onInstallVersion={installSelectedVersion}
                 onUninstall={uninstallSelected}
                 onUpdate={updateSelected}
-                onSyncLinks={syncLinksNow}
                 setError={setError}
                 onSetLogText={setLogText}
               />
@@ -937,7 +952,6 @@ const PackageDetail: React.FC<{
   onInstallVersion: (version: string) => Promise<void>
   onUninstall: () => Promise<void>
   onUpdate: () => Promise<void>
-  onSyncLinks: () => Promise<void>
   setError: (v: string | null) => void
   onSetLogText: (v: string) => void
 }> = ({
@@ -955,7 +969,6 @@ const PackageDetail: React.FC<{
   onInstallVersion,
   onUninstall,
   onUpdate,
-  onSyncLinks,
   setError,
   onSetLogText
 }) => {
@@ -1053,14 +1066,6 @@ const PackageDetail: React.FC<{
             </button>
           ) : null}
 
-          <button
-            className="btn"
-            onClick={() => void onSyncLinks()}
-            disabled={!canAct || !isUnrealProject}
-            title={!isUnrealProject ? t('warn.noUproject') : ''}
-          >
-            {t('detail.action.syncLinks')}
-          </button>
         </div>
       </div>
 
