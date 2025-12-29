@@ -14,6 +14,12 @@ const uniq = (arr: string[]) => [...new Set(arr)]
 
 const splitPath = (value: string) => value.split(path.delimiter).filter(Boolean)
 
+const getPathEnvKey = (env: NodeJS.ProcessEnv): string => {
+  if (os.platform() !== 'win32') return 'PATH'
+  const found = Object.keys(env).find((k) => k.toLowerCase() === 'path')
+  return found || 'Path'
+}
+
 const mergePathParts = (...lists: Array<string[] | null | undefined>) => {
   const out: string[] = []
   const seen = new Set<string>()
@@ -61,7 +67,9 @@ const readPathFromLoginShell = async (): Promise<string | null> => {
 }
 
 const buildNpmSpawnEnv = async (): Promise<NodeJS.ProcessEnv> => {
-  const basePath = process.env.PATH || ''
+  const env: NodeJS.ProcessEnv = { ...process.env }
+  const pathKey = getPathEnvKey(env)
+  const basePath = env[pathKey] || ''
   const common: string[] =
     os.platform() === 'darwin'
       ? [
@@ -80,7 +88,15 @@ const buildNpmSpawnEnv = async (): Promise<NodeJS.ProcessEnv> => {
 
   const shellPath = await readPathFromLoginShell()
   const merged = mergePathParts(splitPath(shellPath || ''), splitPath(basePath), common)
-  return { ...process.env, PATH: merged.join(path.delimiter) }
+
+  // Avoid having both Path and PATH in the child environment on Windows.
+  if (os.platform() === 'win32') {
+    if (pathKey !== 'Path') delete env.Path
+    if (pathKey !== 'PATH') delete env.PATH
+  }
+
+  env[pathKey] = merged.join(path.delimiter)
+  return env
 }
 
 const uniqueScopedRegistry = (cfg: NpmrcConfig): string | null => {
@@ -139,11 +155,19 @@ export const runNpm = async (
       const env = await buildNpmSpawnEnv()
       let child
       try {
-        child = spawn(npmPath, cmdArgs, {
-          cwd: opts.cwd,
-          env,
-          shell: false
-        })
+        if (os.platform() === 'win32' && npmPath.toLowerCase().endsWith('.ps1')) {
+          child = spawn(
+            'powershell.exe',
+            ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', npmPath, ...cmdArgs],
+            { cwd: opts.cwd, env, shell: false }
+          )
+        } else {
+          child = spawn(npmPath, cmdArgs, {
+            cwd: opts.cwd,
+            env,
+            shell: os.platform() === 'win32'
+          })
+        }
       } catch (err) {
         resolve({ cmd, exitCode: -1, stdout: '', stderr: String(err) })
         return
@@ -157,12 +181,14 @@ export const runNpm = async (
       })
       child.on('error', (err) => {
         const anyErr = err as Error & { code?: string }
-        if (anyErr.code === 'ENOENT') {
+        if (anyErr.code === 'ENOENT' || (os.platform() === 'win32' && anyErr.code === 'UNKNOWN')) {
           const configured = opts.settings.npmExecutablePath?.trim()
           const hint = configured
             ? `Configured npm executable not found: ${npmPath}`
             : os.platform() === 'darwin'
               ? 'npm not found. If you installed Node via Homebrew/NVM, set Settings → npm executable path (e.g. /opt/homebrew/bin/npm), or launch the app from Terminal so PATH is available.'
+              : os.platform() === 'win32'
+                ? 'npm not found. Install Node.js (npm), or set Settings → npm executable path (prefer npm.cmd, not npm.ps1).'
               : 'npm not found. Install Node.js (npm) or set Settings → npm executable path.'
           resolve({ cmd, exitCode: -1, stdout, stderr: (stderr + hint + '\n' + String(err)).trim() })
           return

@@ -61,6 +61,15 @@ If you configured a public registry but see no results under `My Registry`:
 - `UE Only` filter is enabled by default; many public packages don’t include UE keywords — disable it or search by exact package name
 - Use `npm ping` in Settings to validate registry/proxy/auth
 
+## Troubleshooting
+
+### Windows: `Error: spawn UNKNOWN`
+
+This usually means the app is trying to run PowerShell’s `npm.ps1` script, which Node/Electron cannot spawn directly.
+
+- In `Settings`, set `npm executable path` explicitly to `C:\\Program Files\\nodejs\\npm.cmd` (or wherever your `npm.cmd` is)
+- Run `where npm` and ensure `npm.cmd` is listed, then restart the app
+
 ## Creating a compliant npm package (UE plugin)
 
 This app detects local UE plugins by scanning each installed package directory in `node_modules` for `*.uplugin` (package root only). To make your package work well:

@@ -137,6 +137,15 @@ git push origin v0.1.0
 
 ## 常见问题
 
+### Windows：`Error: spawn UNKNOWN`
+
+这通常表示应用在运行 npm 时命中了 PowerShell 版本的 `npm.ps1`（脚本），而 Node/Electron 无法直接 `spawn` 该脚本。
+
+解决方法：
+
+- 在应用右上角 `设置` 里，把 `npm executable path` 显式设置为 `C:\\Program Files\\nodejs\\npm.cmd`（或你机器上的 `npm.cmd`）
+- 在命令行运行 `where npm`，确认输出里包含 `npm.cmd`，然后重启应用
+
 ### `Error: Electron uninstall`
 
 这表示 `electron` 包的二进制没下载成功（`node_modules/electron/dist` 缺失），通常是网络/代理导致 postinstall 下载失败，或安装过程被中断。
